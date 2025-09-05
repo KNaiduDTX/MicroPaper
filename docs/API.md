@@ -15,7 +15,9 @@ Currently, no authentication is required for MVP development. In production, thi
 
 ## Endpoints
 
-### 1. Issue Traditional Note
+### 1. Mock Custodian API
+
+#### 1.1 Issue Traditional Note
 
 **POST** `/api/mock/custodian/issue`
 
@@ -68,7 +70,7 @@ Simulates a custodian issuing a traditional note when a token is minted.
 }
 ```
 
-### 2. Health Check
+#### 1.2 Health Check
 
 **GET** `/api/mock/custodian/health`
 
@@ -85,7 +87,7 @@ Returns the health status of the service.
 }
 ```
 
-### 3. Service Information
+#### 1.3 Service Information
 
 **GET** `/api/mock/custodian/info`
 
@@ -112,11 +114,185 @@ Returns detailed information about the service and available endpoints.
 }
 ```
 
+### 2. Mock Compliance API
+
+#### 2.1 Check Compliance Status
+
+**GET** `/api/mock/compliance/:walletAddress`
+
+Check the verification status of a wallet address.
+
+#### Parameters
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `walletAddress` | string | Yes | Ethereum wallet address (0x + 40 hex characters) |
+
+#### Response
+
+**Success (200 OK)**
+```json
+{
+  "isVerified": true,
+  "requestId": "req_abc123"
+}
+```
+
+**Error (400 Bad Request)**
+```json
+{
+  "error": {
+    "code": "INVALID_WALLET_ADDRESS",
+    "message": "Wallet address must be a valid Ethereum address (0x + 40 hex characters)",
+    "details": [
+      {
+        "field": "walletAddress",
+        "issue": "invalid_format",
+        "message": "Invalid Ethereum address format"
+      }
+    ]
+  },
+  "requestId": "req_def456"
+}
+```
+
+#### 2.2 Verify Wallet (Admin/Demo)
+
+**POST** `/api/mock/compliance/verify/:walletAddress`
+
+Manually verify a wallet address for demo purposes.
+
+#### Parameters
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `walletAddress` | string | Yes | Ethereum wallet address to verify |
+
+#### Response
+
+**Success (200 OK)**
+```json
+{
+  "success": true,
+  "message": "Wallet 0x... marked as verified",
+  "requestId": "req_ghi789"
+}
+```
+
+#### 2.3 Unverify Wallet (Admin/Demo)
+
+**POST** `/api/mock/compliance/unverify/:walletAddress`
+
+Manually unverify a wallet address for demo purposes.
+
+#### Parameters
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `walletAddress` | string | Yes | Ethereum wallet address to unverify |
+
+#### Response
+
+**Success (200 OK)**
+```json
+{
+  "success": true,
+  "message": "Wallet 0x... marked as unverified",
+  "requestId": "req_jkl012"
+}
+```
+
+#### 2.4 Get Compliance Statistics
+
+**GET** `/api/mock/compliance/stats`
+
+Get statistics about the compliance registry.
+
+#### Response
+
+```json
+{
+  "totalWallets": 5,
+  "verifiedWallets": 2,
+  "unverifiedWallets": 3,
+  "verificationRate": "40.00%",
+  "requestId": "req_mno345"
+}
+```
+
+#### 2.5 Get Verified Wallets
+
+**GET** `/api/mock/compliance/verified`
+
+Get a list of all verified wallet addresses.
+
+#### Response
+
+```json
+{
+  "verifiedWallets": [
+    "0x742d35cc6634c0532925a3b8d4c9db96c4b4d8b6",
+    "0xa1b2c3d4e5f6789012345678901234567890abcd"
+  ],
+  "count": 2,
+  "requestId": "req_pqr678"
+}
+```
+
+#### 2.6 Health Check
+
+**GET** `/api/mock/compliance/health`
+
+Returns the health status of the compliance service.
+
+#### Response
+
+```json
+{
+  "status": "healthy",
+  "service": "micropaper-mock-compliance",
+  "timestamp": "2024-12-19T16:33:00.000Z",
+  "version": "1.0.0"
+}
+```
+
+#### 2.7 Service Information
+
+**GET** `/api/mock/compliance/info`
+
+Returns detailed information about the compliance service.
+
+#### Response
+
+```json
+{
+  "service": "MicroPaper Mock Compliance API",
+  "version": "1.0.0",
+  "description": "Simulates KYC/AML compliance registry for wallet verification",
+  "endpoints": {
+    "checkStatus": "GET /api/mock/compliance/:walletAddress",
+    "verifyWallet": "POST /api/mock/compliance/verify/:walletAddress",
+    "unverifyWallet": "POST /api/mock/compliance/unverify/:walletAddress",
+    "getStats": "GET /api/mock/compliance/stats",
+    "getVerified": "GET /api/mock/compliance/verified",
+    "health": "GET /api/mock/compliance/health",
+    "info": "GET /api/mock/compliance/info"
+  },
+  "features": {
+    "inMemoryStorage": "Wallet verification status stored in memory",
+    "auditLogging": "All compliance actions logged for audit trail",
+    "adminControls": "Manual verification/unverification for demo purposes",
+    "statistics": "Registry statistics and verified wallet lists"
+  }
+}
+```
+
 ## Error Codes
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
 | `INVALID_INPUT` | 400 | Request validation failed |
+| `INVALID_WALLET_ADDRESS` | 400 | Invalid wallet address format |
 | `VALIDATION_ERROR` | 422 | Business rule validation failed |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
 | `NOT_FOUND` | 404 | Route not found |
@@ -142,6 +318,13 @@ Returns detailed information about the service and available endpoints.
 - Follows ISO 6166 standard (12 characters)
 - Format: `USMOCK` + 5-digit number + check digit
 - Example: `USMOCK12345`
+
+### Compliance Rules
+- Default verification status for all wallets is `false`
+- Wallet addresses are case-insensitive (normalized to lowercase)
+- Verification status is stored in memory (resets on server restart)
+- All compliance actions are logged for audit trail
+- Manual verification/unverification available for demo purposes
 
 ## Rate Limiting
 
@@ -182,6 +365,7 @@ curl -X POST http://localhost:3001/api/mock/custodian/issue \
 ### JavaScript (Fetch)
 
 ```javascript
+// Issue traditional note
 const response = await fetch('http://localhost:3001/api/mock/custodian/issue', {
   method: 'POST',
   headers: {
@@ -196,6 +380,18 @@ const response = await fetch('http://localhost:3001/api/mock/custodian/issue', {
 
 const data = await response.json();
 console.log(data);
+
+// Check compliance status
+const complianceResponse = await fetch('http://localhost:3001/api/mock/compliance/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6');
+const complianceData = await complianceResponse.json();
+console.log(complianceData);
+
+// Verify wallet (admin/demo)
+const verifyResponse = await fetch('http://localhost:3001/api/mock/compliance/verify/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6', {
+  method: 'POST'
+});
+const verifyData = await verifyResponse.json();
+console.log(verifyData);
 ```
 
 ### Python (requests)
@@ -203,6 +399,7 @@ console.log(data);
 ```python
 import requests
 
+# Issue traditional note
 url = 'http://localhost:3001/api/mock/custodian/issue'
 data = {
     'walletAddress': '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
@@ -212,6 +409,16 @@ data = {
 
 response = requests.post(url, json=data)
 print(response.json())
+
+# Check compliance status
+compliance_url = 'http://localhost:3001/api/mock/compliance/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'
+compliance_response = requests.get(compliance_url)
+print(compliance_response.json())
+
+# Verify wallet (admin/demo)
+verify_url = 'http://localhost:3001/api/mock/compliance/verify/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'
+verify_response = requests.post(verify_url)
+print(verify_response.json())
 ```
 
 ## Development

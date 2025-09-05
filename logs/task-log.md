@@ -42,12 +42,18 @@ Each task entry follows this format:
 - **Status**: COMPLETED
 - **Notes**: Implemented complete Mock Custodian API with POST /api/mock/custodian/issue endpoint, input validation, ISIN generation, structured logging, CORS, rate limiting, error handling, and Vercel deployment configuration
 
+### 2024-12-19
+- **Task ID**: MVP-006
+- **Description**: Build Mock Compliance Registry (In-Memory) - Task 0.1.3
+- **Status**: COMPLETED
+- **Notes**: Implemented complete Mock Compliance API with GET /api/mock/compliance/:walletAddress, POST /api/mock/compliance/verify/:walletAddress, POST /api/mock/compliance/unverify/:walletAddress, GET /api/mock/compliance/stats, GET /api/mock/compliance/verified endpoints, in-memory registry, wallet validation, structured logging, and comprehensive API documentation
+
 ---
 
 ## Summary
-- **Total Tasks Completed**: 5
-- **Current Phase**: Mock Custodian API Complete
-- **Next Phase**: Ready for frontend integration and testing
+- **Total Tasks Completed**: 6
+- **Current Phase**: Mock Compliance Registry Complete
+- **Next Phase**: Ready for frontend integration with compliance-aware features
 
 ## Notes
 - All initial setup tasks have been completed successfully

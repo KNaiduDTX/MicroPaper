@@ -11,6 +11,7 @@ const { cors, rateLimit, securityHeaders, requestTiming } = require('./middlewar
 
 // Import API routes
 const custodianRoutes = require('./api/custodian');
+const complianceRoutes = require('./api/compliance');
 
 // Create Express app
 const app = express();
@@ -34,6 +35,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API routes
 app.use('/api/mock/custodian', custodianRoutes);
+app.use('/api/mock/compliance', complianceRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -43,9 +45,20 @@ app.get('/', (req, res) => {
     status: 'running',
     timestamp: new Date().toISOString(),
     endpoints: {
-      issue: 'POST /api/mock/custodian/issue',
-      health: 'GET /api/mock/custodian/health',
-      info: 'GET /api/mock/custodian/info'
+      custodian: {
+        issue: 'POST /api/mock/custodian/issue',
+        health: 'GET /api/mock/custodian/health',
+        info: 'GET /api/mock/custodian/info'
+      },
+      compliance: {
+        checkStatus: 'GET /api/mock/compliance/:walletAddress',
+        verifyWallet: 'POST /api/mock/compliance/verify/:walletAddress',
+        unverifyWallet: 'POST /api/mock/compliance/unverify/:walletAddress',
+        getStats: 'GET /api/mock/compliance/stats',
+        getVerified: 'GET /api/mock/compliance/verified',
+        health: 'GET /api/mock/compliance/health',
+        info: 'GET /api/mock/compliance/info'
+      }
     },
     documentation: 'https://github.com/micropaper/mock-custodian-api'
   });
@@ -68,6 +81,9 @@ app.use(notFoundHandler);
 // Error handler (must be last)
 app.use(errorHandler);
 
+// Initialize demo data
+const { initializeDemoWallets } = require('./utils/registry');
+
 // Start server
 const server = app.listen(config.server.port, config.server.host, () => {
   logger.info('MicroPaper Mock Custodian API started', {
@@ -80,7 +96,11 @@ const server = app.listen(config.server.port, config.server.host, () => {
   
   console.log(`🚀 MicroPaper Mock Custodian API running on http://${config.server.host}:${config.server.port}`);
   console.log(`📋 Environment: ${config.server.env}`);
-  console.log(`🔗 Issue endpoint: POST http://${config.server.host}:${config.server.port}/api/mock/custodian/issue`);
+  console.log(`🔗 Custodian endpoint: POST http://${config.server.host}:${config.server.port}/api/mock/custodian/issue`);
+  console.log(`🔗 Compliance endpoint: GET http://${config.server.host}:${config.server.port}/api/mock/compliance/:walletAddress`);
+  
+  // Initialize demo wallets for compliance registry
+  initializeDemoWallets();
 });
 
 // Graceful shutdown
