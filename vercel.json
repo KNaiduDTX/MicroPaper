@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "name": "micropaper-mock-custodian-api",
+  "builds": [
+    {
+      "src": "src/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/server.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "PORT": "3001",
+    "LOG_LEVEL": "info",
+    "USE_MOCK_CUSTODIAN": "true",
+    "ENABLE_RATE_LIMITING": "true",
+    "RATE_LIMIT_WINDOW_MS": "900000",
+    "RATE_LIMIT_MAX_REQUESTS": "100"
+  },
+  "functions": {
+    "src/server.js": {
+      "maxDuration": 30
+    }
+  }
+}

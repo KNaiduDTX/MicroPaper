@@ -36,12 +36,18 @@ Each task entry follows this format:
 - **Status**: COMPLETED
 - **Notes**: Created initial directory structure including logs/, docs/, src/, tests/, config/, and scripts/ directories
 
+### 2024-12-19
+- **Task ID**: MVP-005
+- **Description**: Build Mock Custodian API (Express.js) - Task 0.1.2
+- **Status**: COMPLETED
+- **Notes**: Implemented complete Mock Custodian API with POST /api/mock/custodian/issue endpoint, input validation, ISIN generation, structured logging, CORS, rate limiting, error handling, and Vercel deployment configuration
+
 ---
 
 ## Summary
-- **Total Tasks Completed**: 4
-- **Current Phase**: MVP Setup Complete
-- **Next Phase**: Awaiting first development task
+- **Total Tasks Completed**: 5
+- **Current Phase**: Mock Custodian API Complete
+- **Next Phase**: Ready for frontend integration and testing
 
 ## Notes
 - All initial setup tasks have been completed successfully
