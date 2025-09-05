@@ -1,0 +1,8 @@
+# Tests Directory
+
+This directory will contain test files including:
+- Unit tests
+- Integration tests
+- End-to-end tests
+- Test utilities and fixtures
+- Mock data and test helpers
