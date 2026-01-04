@@ -86,7 +86,13 @@ const { initializeDemoWallets } = require('./utils/registry');
 
 // Only start the server if not running in Vercel serverless environment
 // Vercel serverless functions don't need app.listen()
-if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+// Check for Vercel environment variables: VERCEL, VERCEL_ENV, or AWS_LAMBDA_FUNCTION_NAME
+const isServerless = process.env.VERCEL === '1' || 
+                     process.env.VERCEL_ENV || 
+                     process.env.AWS_LAMBDA_FUNCTION_NAME ||
+                     process.env.VERCEL_REGION;
+
+if (!isServerless) {
   // Start server
   const server = app.listen(config.server.port, config.server.host, () => {
     logger.info('MicroPaper Mock Custodian API started', {
@@ -122,20 +128,38 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
       process.exit(0);
     });
   });
-} else {
-  // In Vercel environment, initialize demo wallets on module load
-  initializeDemoWallets();
 }
+// Note: In Vercel/serverless environment, initialization happens in api/index.js
+// to avoid duplicate initialization
 
 // Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
-  process.exit(1);
-});
+// In serverless environments, we should log but not exit
+const isServerlessForErrorHandling = process.env.VERCEL === '1' || 
+                                      process.env.VERCEL_ENV || 
+                                      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+                                      process.env.VERCEL_REGION;
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', { reason, promise });
-  process.exit(1);
-});
+if (!isServerlessForErrorHandling) {
+  process.on('uncaughtException', (err) => {
+    logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection', { reason, promise });
+    process.exit(1);
+  });
+} else {
+  // In serverless, log errors but don't exit (let Vercel handle it)
+  process.on('uncaughtException', (err) => {
+    logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
+    console.error('Uncaught Exception:', err);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection', { reason, promise });
+    console.error('Unhandled Rejection:', reason);
+  });
+}
 
 module.exports = app;

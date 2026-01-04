@@ -7,12 +7,11 @@ const winston = require('winston');
 const path = require('path');
 const config = require('../config');
 
-// Create logs directory if it doesn't exist
-const fs = require('fs');
-const logDir = path.dirname(config.logging.file);
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
-}
+// Check if running in serverless environment
+const isServerless = process.env.VERCEL === '1' || 
+                     process.env.VERCEL_ENV || 
+                     process.env.AWS_LAMBDA_FUNCTION_NAME ||
+                     process.env.VERCEL_REGION;
 
 // Define log format
 const logFormat = winston.format.combine(
@@ -34,26 +33,34 @@ const logger = winston.createLogger({
   level: config.logging.level,
   format: logFormat,
   defaultMeta: { service: 'micropaper-mock-custodian' },
-  transports: [
-    // File transport for persistent logging
-    new winston.transports.File({
-      filename: config.logging.file,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true
-    })
-  ]
+  transports: []
 });
 
-// Add console transport for development
-if (config.logging.console) {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
+// Only add file transport if not in serverless environment
+if (!isServerless) {
+  // Create logs directory if it doesn't exist
+  const fs = require('fs');
+  const logDir = path.dirname(config.logging.file);
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // File transport for persistent logging (local development only)
+  logger.add(new winston.transports.File({
+    filename: config.logging.file,
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+    tailable: true
   }));
 }
+
+// Always add console transport (works in both local and serverless)
+logger.add(new winston.transports.Console({
+  format: winston.format.combine(
+    winston.format.colorize(),
+    winston.format.simple()
+  )
+}));
 
 // Helper functions for structured logging
 const logRequest = (req, res, next) => {
