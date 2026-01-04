@@ -15,7 +15,7 @@ const { createErrorResponse } = require('./errorHandler');
 const validateWalletAddress = (req, res, next) => {
   const { walletAddress } = req.params;
   const requestId = req.requestId || 'unknown';
-  
+
   // Check if wallet address is provided
   if (!walletAddress) {
     return res.status(400).json(createErrorResponse(
@@ -25,7 +25,7 @@ const validateWalletAddress = (req, res, next) => {
       requestId
     ));
   }
-  
+
   // Validate wallet address format
   if (!isValidWalletAddress(walletAddress)) {
     return res.status(400).json(createErrorResponse(
@@ -39,10 +39,10 @@ const validateWalletAddress = (req, res, next) => {
       requestId
     ));
   }
-  
+
   // Add normalized wallet address to request for consistency
   req.normalizedWalletAddress = walletAddress.toLowerCase();
-  
+
   next();
 };
 
@@ -55,7 +55,7 @@ const validateWalletAddress = (req, res, next) => {
 const validateWalletAddressInBody = (req, res, next) => {
   const { walletAddress } = req.body;
   const requestId = req.requestId || 'unknown';
-  
+
   // Check if wallet address is provided
   if (!walletAddress) {
     return res.status(400).json(createErrorResponse(
@@ -65,7 +65,7 @@ const validateWalletAddressInBody = (req, res, next) => {
       requestId
     ));
   }
-  
+
   // Validate wallet address format
   if (!isValidWalletAddress(walletAddress)) {
     return res.status(400).json(createErrorResponse(
@@ -79,10 +79,10 @@ const validateWalletAddressInBody = (req, res, next) => {
       requestId
     ));
   }
-  
+
   // Add normalized wallet address to request for consistency
   req.normalizedWalletAddress = walletAddress.toLowerCase();
-  
+
   next();
 };
 

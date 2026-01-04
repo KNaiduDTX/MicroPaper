@@ -15,13 +15,13 @@ const config = {
 
   // CORS Configuration
   cors: {
-    allowedOrigins: process.env.ALLOWED_ORIGINS 
+    allowedOrigins: process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [
-          'http://localhost:3000',
-          'https://micropaper-mvp.vercel.app',
-          'https://app.micropaper.com'
-        ],
+        'http://localhost:3000',
+        'https://micropaper-mvp.vercel.app',
+        'https://app.micropaper.com'
+      ],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With']
   },

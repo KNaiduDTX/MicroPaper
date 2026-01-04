@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { ethers } = require('ethers');
 const config = require('../config');
 
 /**
@@ -13,14 +14,29 @@ const config = require('../config');
  */
 const isValidWalletAddress = (address) => {
   if (!address || typeof address !== 'string') return false;
-  
+
   // Basic Ethereum address format: 0x + 40 hex characters
   const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
   if (!ethAddressRegex.test(address)) return false;
-  
-  // TODO: Add EIP-55 checksum validation for production
-  // For MVP, we'll accept any valid hex format
-  return true;
+
+  // EIP-55 checksum validation
+  try {
+    // ethers.getAddress() validates and returns checksummed address (ethers v6 API)
+    // It throws an error if the address is invalid
+    const checksummedAddress = ethers.getAddress(address.toLowerCase());
+    
+    // If address is provided with mixed case (checksummed), verify it matches
+    if (address !== address.toLowerCase() && address !== address.toUpperCase()) {
+      // Address has mixed case, so it should match the checksummed version
+      return address === checksummedAddress;
+    }
+    // Address is all lowercase or all uppercase, which is also valid
+    // We've already validated the format, so return true
+    return true;
+  } catch (error) {
+    // Invalid address format
+    return false;
+  }
 };
 
 /**
@@ -40,12 +56,12 @@ const isValidAmount = (amount) => {
  */
 const isValidMaturityDate = (maturityDate) => {
   if (!maturityDate || typeof maturityDate !== 'string') return false;
-  
+
   try {
     const maturity = new Date(maturityDate);
     const now = new Date();
     const daysDiff = Math.ceil((maturity - now) / (1000 * 60 * 60 * 24));
-    
+
     return daysDiff > 0 && daysDiff <= config.business.maxMaturityDays;
   } catch (error) {
     return false;
@@ -61,7 +77,7 @@ const generateMockISIN = () => {
   const { countryCode, prefix } = config.business.isinFormat;
   const randomNumber = Math.floor(Math.random() * 90000) + 10000; // 5-digit number
   const checkDigit = Math.floor(Math.random() * 10); // Simple check digit for mock
-  
+
   return `${countryCode}${prefix}${randomNumber}${checkDigit}`;
 };
 
@@ -79,7 +95,7 @@ const issueNoteSchema = Joi.object({
       'any.required': 'Wallet address is required',
       'walletAddress.invalid': 'Invalid wallet address format'
     }),
-    
+
   amount: Joi.number()
     .integer()
     .positive()
@@ -96,7 +112,7 @@ const issueNoteSchema = Joi.object({
       'number.positive': 'Amount must be positive',
       'amount.invalid': `Amount must be a multiple of $${config.business.unitSize.toLocaleString()}`
     }),
-    
+
   maturityDate: Joi.string()
     .isoDate()
     .custom((value, helpers) => {

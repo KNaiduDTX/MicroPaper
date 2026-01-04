@@ -59,7 +59,7 @@ if (config.logging.console) {
 const logRequest = (req, res, next) => {
   const requestId = req.headers['x-request-id'] || require('uuid').v4();
   req.requestId = requestId;
-  
+
   logger.info('Request received', {
     requestId,
     method: req.method,
@@ -67,23 +67,23 @@ const logRequest = (req, res, next) => {
     userAgent: req.get('User-Agent'),
     ip: req.ip
   });
-  
+
   next();
 };
 
 const logResponse = (req, res, next) => {
   const originalSend = res.send;
-  
-  res.send = function(data) {
+
+  res.send = function (data) {
     logger.info('Response sent', {
       requestId: req.requestId,
       statusCode: res.statusCode,
       responseTime: Date.now() - req.startTime
     });
-    
+
     originalSend.call(this, data);
   };
-  
+
   next();
 };
 

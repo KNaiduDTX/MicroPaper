@@ -6,21 +6,20 @@
 const express = require('express');
 const { issueNoteSchema, generateMockISIN } = require('../utils/validators');
 const { logger } = require('../utils/logger');
-const { createErrorResponse } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
 /**
  * POST /api/mock/custodian/issue
  * Simulates custodian issuing a traditional note when a token is minted
- * 
+ *
  * Request Body:
  * {
  *   "walletAddress": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
  *   "amount": 100000,
  *   "maturityDate": "2025-06-15T00:00:00.000Z"
  * }
- * 
+ *
  * Response:
  * {
  *   "isin": "USMOCK12345",
@@ -31,7 +30,7 @@ const router = express.Router();
 router.post('/issue', async (req, res, next) => {
   const requestId = req.requestId;
   const startTime = Date.now();
-  
+
   try {
     // Validate request body
     const { error, value } = issueNoteSchema.validate(req.body);
@@ -43,9 +42,9 @@ router.post('/issue', async (req, res, next) => {
       });
       return next(error);
     }
-    
+
     const { walletAddress, amount, maturityDate } = value;
-    
+
     // Log the issuance request
     logger.info('Mock custodian issuance request', {
       requestId,
@@ -54,21 +53,21 @@ router.post('/issue', async (req, res, next) => {
       maturityDate,
       timestamp: new Date().toISOString()
     });
-    
+
     // Generate mock ISIN following ISO 6166 format
     const isin = generateMockISIN();
     const issuedAt = new Date().toISOString();
-    
+
     // Simulate processing time (realistic for custodian operations)
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     // Prepare response
     const response = {
       isin,
       status: 'issued',
       issuedAt
     };
-    
+
     // Log successful issuance
     logger.info('Mock custodian issuance completed', {
       requestId,
@@ -78,12 +77,12 @@ router.post('/issue', async (req, res, next) => {
       maturityDate,
       processingTime: Date.now() - startTime
     });
-    
+
     // Console log for development visibility (as per requirements)
     console.log(`[MOCK CUSTODIAN] Issuance completed - ISIN: ${isin}, Amount: $${amount.toLocaleString()}, Wallet: ${walletAddress}`);
-    
+
     res.status(200).json(response);
-    
+
   } catch (err) {
     logger.error('Mock custodian issuance failed', {
       requestId,
@@ -91,7 +90,7 @@ router.post('/issue', async (req, res, next) => {
       stack: err.stack,
       body: req.body
     });
-    
+
     next(err);
   }
 });

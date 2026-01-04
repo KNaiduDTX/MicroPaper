@@ -29,9 +29,9 @@ const createErrorResponse = (code, message, details = [], requestId = null) => (
  * @param {Object} res - Express response object
  * @param {Function} next - Next middleware function
  */
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   const requestId = req.requestId || 'unknown';
-  
+
   // Log error with context
   logger.error('API Error', {
     requestId,
@@ -41,7 +41,7 @@ const errorHandler = (err, req, res, next) => {
     method: req.method,
     body: req.body
   });
-  
+
   // Handle Joi validation errors
   if (err.isJoi) {
     const details = err.details.map(detail => ({
@@ -49,7 +49,7 @@ const errorHandler = (err, req, res, next) => {
       issue: detail.type,
       message: detail.message
     }));
-    
+
     return res.status(400).json(createErrorResponse(
       'INVALID_INPUT',
       'Request validation failed',
@@ -57,7 +57,7 @@ const errorHandler = (err, req, res, next) => {
       requestId
     ));
   }
-  
+
   // Handle specific error types
   switch (err.name) {
     case 'ValidationError':
@@ -67,7 +67,7 @@ const errorHandler = (err, req, res, next) => {
         [],
         requestId
       ));
-      
+
     case 'UnauthorizedError':
       return res.status(401).json(createErrorResponse(
         'UNAUTHORIZED',
@@ -75,7 +75,7 @@ const errorHandler = (err, req, res, next) => {
         [],
         requestId
       ));
-      
+
     case 'ForbiddenError':
       return res.status(403).json(createErrorResponse(
         'FORBIDDEN',
@@ -83,7 +83,7 @@ const errorHandler = (err, req, res, next) => {
         [],
         requestId
       ));
-      
+
     case 'NotFoundError':
       return res.status(404).json(createErrorResponse(
         'NOT_FOUND',
@@ -91,7 +91,7 @@ const errorHandler = (err, req, res, next) => {
         [],
         requestId
       ));
-      
+
     case 'ConflictError':
       return res.status(409).json(createErrorResponse(
         'CONFLICT',
@@ -99,13 +99,13 @@ const errorHandler = (err, req, res, next) => {
         [],
         requestId
       ));
-      
+
     default:
       // Generic server error
       return res.status(500).json(createErrorResponse(
         'INTERNAL_ERROR',
-        process.env.NODE_ENV === 'production' 
-          ? 'Internal server error' 
+        process.env.NODE_ENV === 'production'
+          ? 'Internal server error'
           : err.message,
         [],
         requestId
@@ -120,14 +120,14 @@ const errorHandler = (err, req, res, next) => {
  */
 const notFoundHandler = (req, res) => {
   const requestId = req.requestId || 'unknown';
-  
+
   logger.warn('Route not found', {
     requestId,
     method: req.method,
     url: req.url,
     ip: req.ip
   });
-  
+
   res.status(404).json(createErrorResponse(
     'NOT_FOUND',
     `Route ${req.method} ${req.url} not found`,

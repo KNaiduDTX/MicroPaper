@@ -1,10 +1,10 @@
 /**
  * MicroPaper Mock Compliance Registry
  * In-memory store for wallet verification status
- * 
+ *
  * This registry simulates a KYC/AML compliance system that tracks
  * which wallets are "approved" to participate in issuance or trading.
- * 
+ *
  * For MVP purposes, this is stored in memory and will reset on server restart.
  * In production, this would be replaced with a real compliance database.
  */
@@ -13,7 +13,7 @@
  * In-memory compliance registry
  * Key: wallet address (string)
  * Value: verification status (boolean)
- * 
+ *
  * Example state:
  * {
  *   "0xA1b2C3d4E5f6789012345678901234567890abcd": true,  // Verified investor
@@ -61,12 +61,12 @@ const getVerifiedWallets = () => {
 const getRegistryStats = () => {
   let verifiedCount = 0;
   let totalCount = 0;
-  
+
   for (const status of complianceRegistry.values()) {
     totalCount++;
     if (status) verifiedCount++;
   }
-  
+
   return {
     totalWallets: totalCount,
     verifiedWallets: verifiedCount,
@@ -92,12 +92,12 @@ const initializeDemoWallets = () => {
     '0xA1b2C3d4E5f6789012345678901234567890abcd', // Demo verified wallet
     '0xB2c3D4e5F6789012345678901234567890abcdef'  // Demo unverified wallet
   ];
-  
+
   // Set first two as verified for demo purposes
   setVerificationStatus(demoWallets[0], true);
   setVerificationStatus(demoWallets[1], true);
   setVerificationStatus(demoWallets[2], false);
-  
+
   console.log('🎭 Demo wallets initialized in compliance registry');
   console.log(`   ✅ Verified: ${demoWallets[0]}`);
   console.log(`   ✅ Verified: ${demoWallets[1]}`);

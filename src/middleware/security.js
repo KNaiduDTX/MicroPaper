@@ -15,7 +15,7 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    
+
     if (config.cors.allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -62,8 +62,8 @@ const securityHeaders = helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
+      imgSrc: ["'self'", 'data:', 'https:']
+    }
   },
   crossOriginEmbedderPolicy: false
 });

@@ -69,21 +69,70 @@ This API simulates traditional note issuance for dual-format commercial paper, p
 - **Dual Format**: Traditional note + tokenized note (1:1 linked)
 - **Validation**: KYC'd issuers + verified investors
 
+## Frontend Application
+
+A modern Next.js frontend application that provides a user interface for the Mock Custodian API.
+
+### Features
+
+- ✅ **Note Issuance Interface** - Issue traditional notes with form validation
+- ✅ **Compliance Management** - Check and manage wallet verification status
+- ✅ **Dashboard** - View system statistics and recent activity
+- ✅ **Wallet Management** - View wallet details and compliance status
+- ✅ **Responsive Design** - Mobile-first design that works on all devices
+- ✅ **Type Safety** - Full TypeScript support with type-safe API calls
+- ✅ **Error Handling** - Comprehensive error handling with user-friendly messages
+
+### Quick Start
+
+1. **Navigate to frontend directory**
+   ```bash
+   cd frontend
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   # Create .env.local file
+   echo "NEXT_PUBLIC_API_URL=http://localhost:3001" > .env.local
+   ```
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+   The frontend will be available at `http://localhost:3000`.
+
+For detailed frontend documentation, see [frontend/README.md](frontend/README.md).
+
 ## Project Structure
 
 ```
 MicroPaper/
 ├── README.md                 # This file
-├── package.json             # Node.js dependencies and scripts
-├── vercel.json              # Vercel deployment configuration
+├── package.json             # Backend dependencies and scripts
+├── vercel.json              # Backend Vercel deployment configuration
 ├── env.example              # Environment variables template
 ├── docs/                    # Documentation
 │   └── API.md              # API documentation
+├── frontend/                # Frontend application
+│   ├── README.md           # Frontend documentation
+│   ├── package.json        # Frontend dependencies
+│   ├── app/                # Next.js App Router pages
+│   ├── components/        # React components
+│   ├── lib/               # Utilities and API client
+│   └── types/             # TypeScript types
 ├── logs/                    # Task completion logs
 │   └── task-log.md         # Task tracking
-├── src/                     # Source code
+├── src/                     # Backend source code
 │   ├── api/                # API routes
-│   │   └── custodian.js    # Mock custodian endpoints
+│   │   ├── custodian.js    # Mock custodian endpoints
+│   │   └── compliance.js   # Compliance endpoints
 │   ├── config/             # Configuration
 │   │   └── index.js        # Centralized config
 │   ├── middleware/         # Express middleware
@@ -93,19 +142,27 @@ MicroPaper/
 │   │   ├── logger.js       # Logging utilities
 │   │   └── validators.js   # Input validation
 │   └── server.js           # Main server file
-├── tests/                   # Test files (to be added)
-├── config/                  # Configuration files (to be added)
-└── scripts/                 # Build and deployment scripts (to be added)
+├── tests/                   # Backend test files
+└── scripts/                 # Build and deployment scripts
 ```
 
 ## Technology Stack
 
+### Backend
 - **Runtime**: Node.js 18+
 - **Framework**: Express.js
 - **Validation**: Joi
 - **Logging**: Winston
 - **Security**: Helmet, CORS, Rate Limiting
 - **Deployment**: Vercel (serverless)
+
+### Frontend
+- **Framework**: Next.js 16+ (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Forms**: React Hook Form with Zod validation
+- **HTTP Client**: Axios
+- **Deployment**: Vercel
 
 ## Development
 
@@ -147,17 +204,43 @@ npm run dev
 
 ## Deployment
 
-### Vercel (Recommended)
+### Backend Deployment (Vercel)
 
-1. Install Vercel CLI:
+1. **Install Vercel CLI** (if not already installed):
    ```bash
    npm i -g vercel
    ```
 
-2. Deploy:
+2. **Configure Environment Variables**
+   - Set up `.env` file or configure in Vercel dashboard
+   - Ensure `ALLOWED_ORIGINS` includes your frontend production URL
+   - Required variables:
+     - `PORT=3001`
+     - `NODE_ENV=production`
+     - `ALLOWED_ORIGINS` - Include frontend URL
+     - `LOG_LEVEL=info`
+     - `USE_MOCK_CUSTODIAN=true`
+     - `ENABLE_RATE_LIMITING=true`
+
+3. **Deploy Backend**:
    ```bash
    vercel --prod
    ```
+
+4. **Verify Deployment**:
+   ```bash
+   curl https://your-backend.vercel.app/health
+   ```
+
+### Frontend Deployment
+
+See [frontend/README.md](frontend/README.md) for detailed frontend deployment instructions.
+
+**Quick Steps:**
+1. Navigate to `frontend/` directory
+2. Set `NEXT_PUBLIC_API_URL` to your backend production URL
+3. Deploy to Vercel: `vercel --prod`
+4. Update backend `ALLOWED_ORIGINS` to include frontend URL
 
 ### Docker
 

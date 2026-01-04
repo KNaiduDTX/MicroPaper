@@ -93,12 +93,12 @@ const server = app.listen(config.server.port, config.server.host, () => {
     nodeVersion: process.version,
     pid: process.pid
   });
-  
+
   console.log(`🚀 MicroPaper Mock Custodian API running on http://${config.server.host}:${config.server.port}`);
   console.log(`📋 Environment: ${config.server.env}`);
   console.log(`🔗 Custodian endpoint: POST http://${config.server.host}:${config.server.port}/api/mock/custodian/issue`);
   console.log(`🔗 Compliance endpoint: GET http://${config.server.host}:${config.server.port}/api/mock/compliance/:walletAddress`);
-  
+
   // Initialize demo wallets for compliance registry
   initializeDemoWallets();
 });
