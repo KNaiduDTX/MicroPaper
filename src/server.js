@@ -84,41 +84,48 @@ app.use(errorHandler);
 // Initialize demo data
 const { initializeDemoWallets } = require('./utils/registry');
 
-// Start server
-const server = app.listen(config.server.port, config.server.host, () => {
-  logger.info('MicroPaper Mock Custodian API started', {
-    port: config.server.port,
-    host: config.server.host,
-    environment: config.server.env,
-    nodeVersion: process.version,
-    pid: process.pid
+// Only start the server if not running in Vercel serverless environment
+// Vercel serverless functions don't need app.listen()
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+  // Start server
+  const server = app.listen(config.server.port, config.server.host, () => {
+    logger.info('MicroPaper Mock Custodian API started', {
+      port: config.server.port,
+      host: config.server.host,
+      environment: config.server.env,
+      nodeVersion: process.version,
+      pid: process.pid
+    });
+
+    console.log(`🚀 MicroPaper Mock Custodian API running on http://${config.server.host}:${config.server.port}`);
+    console.log(`📋 Environment: ${config.server.env}`);
+    console.log(`🔗 Custodian endpoint: POST http://${config.server.host}:${config.server.port}/api/mock/custodian/issue`);
+    console.log(`🔗 Compliance endpoint: GET http://${config.server.host}:${config.server.port}/api/mock/compliance/:walletAddress`);
+
+    // Initialize demo wallets for compliance registry
+    initializeDemoWallets();
   });
 
-  console.log(`🚀 MicroPaper Mock Custodian API running on http://${config.server.host}:${config.server.port}`);
-  console.log(`📋 Environment: ${config.server.env}`);
-  console.log(`🔗 Custodian endpoint: POST http://${config.server.host}:${config.server.port}/api/mock/custodian/issue`);
-  console.log(`🔗 Compliance endpoint: GET http://${config.server.host}:${config.server.port}/api/mock/compliance/:walletAddress`);
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      logger.info('Server closed');
+      process.exit(0);
+    });
+  });
 
-  // Initialize demo wallets for compliance registry
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      logger.info('Server closed');
+      process.exit(0);
+    });
+  });
+} else {
+  // In Vercel environment, initialize demo wallets on module load
   initializeDemoWallets();
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
+}
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {

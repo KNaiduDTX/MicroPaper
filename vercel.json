@@ -4,7 +4,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "src/server.js"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
@@ -17,7 +17,7 @@
     "RATE_LIMIT_MAX_REQUESTS": "100"
   },
   "functions": {
-    "src/server.js": {
+    "api/index.js": {
       "maxDuration": 30
     }
   }
