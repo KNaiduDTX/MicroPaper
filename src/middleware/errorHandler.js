@@ -29,8 +29,46 @@ const createErrorResponse = (code, message, details = [], requestId = null) => (
  * @param {Object} res - Express response object
  * @param {Function} next - Next middleware function
  */
+/**
+ * Sanitize request body to remove sensitive fields before logging
+ * @param {Object} body - Request body object
+ * @returns {Object} - Sanitized body with sensitive fields removed/hashed
+ */
+const sanitizeRequestBody = (body) => {
+  if (!body || typeof body !== 'object') {
+    return body;
+  }
+
+  const sensitiveFields = ['walletAddress', 'amount', 'password', 'token', 'apiKey', 'secret'];
+  const sanitized = { ...body };
+
+  for (const field of sensitiveFields) {
+    if (sanitized[field]) {
+      // Hash sensitive values for logging (first 4 chars + ... + last 4 chars)
+      const value = String(sanitized[field]);
+      if (value.length > 8) {
+        sanitized[field] = `${value.substring(0, 4)}...${value.substring(value.length - 4)}`;
+      } else {
+        sanitized[field] = '***';
+      }
+    }
+  }
+
+  return sanitized;
+};
+
+/**
+ * Error handler middleware
+ * @param {Error} err - Error object
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Next middleware function
+ */
 const errorHandler = (err, req, res, _next) => {
   const requestId = req.requestId || 'unknown';
+
+  // Sanitize request body before logging to prevent sensitive data exposure
+  const sanitizedBody = sanitizeRequestBody(req.body);
 
   // Log error with context
   logger.error('API Error', {
@@ -39,7 +77,7 @@ const errorHandler = (err, req, res, _next) => {
     stack: err.stack,
     url: req.url,
     method: req.method,
-    body: req.body
+    body: sanitizedBody
   });
 
   // Handle Joi validation errors
