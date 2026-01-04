@@ -98,3 +98,18 @@ class HealthCheckResponse(BaseModel):
     timestamp: str
     version: str
 
+
+# Response model aliases for route compatibility
+ComplianceStatusResponse = ComplianceStatus
+ComplianceStatsResponse = ComplianceStats
+
+
+# Service Info Types (matching frontend/types/api.ts)
+class ServiceInfoResponse(BaseModel):
+    """Response model matching ServiceInfoResponse TypeScript interface"""
+    service: str
+    version: str
+    description: str
+    endpoints: dict
+    features: dict
+

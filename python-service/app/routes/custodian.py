@@ -10,7 +10,7 @@ import random
 
 from app.database import get_db
 from app.models.database import NoteIssuance
-from app.models.schemas import NoteIssuanceRequest, NoteIssuanceResponse
+from app.models.schemas import NoteIssuanceRequest, NoteIssuanceResponse, ServiceInfoResponse
 
 router = APIRouter()
 
@@ -75,4 +75,24 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "1.0.0"
     }
+
+
+@router.get("/info", response_model=ServiceInfoResponse)
+async def get_info():
+    """Get custodian service information"""
+    return ServiceInfoResponse(
+        service="micropaper-custodian",
+        version="1.0.0",
+        description="Mock Custodian API for MicroPaper - Simulates traditional note issuance",
+        endpoints={
+            "issue": "POST /api/mock/custodian/issue",
+            "health": "GET /api/mock/custodian/health",
+            "info": "GET /api/mock/custodian/info"
+        },
+        features={
+            "noteIssuance": "Issue traditional notes with ISIN generation",
+            "database": "PostgreSQL storage for note records",
+            "validation": "Wallet address and maturity date validation"
+        }
+    )
 

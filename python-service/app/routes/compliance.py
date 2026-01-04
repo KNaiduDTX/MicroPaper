@@ -13,7 +13,8 @@ from app.models.schemas import (
     ComplianceStatusResponse,
     ComplianceStatsResponse,
     VerifiedWalletsResponse,
-    WalletVerificationResponse
+    WalletVerificationResponse,
+    ServiceInfoResponse
 )
 
 router = APIRouter()
@@ -262,4 +263,29 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "1.0.0"
     }
+
+
+@router.get("/info", response_model=ServiceInfoResponse)
+async def get_info():
+    """Get compliance service information"""
+    return ServiceInfoResponse(
+        service="micropaper-compliance",
+        version="1.0.0",
+        description="Compliance API for MicroPaper - Wallet verification and compliance management",
+        endpoints={
+            "checkStatus": "GET /api/mock/compliance/{wallet_address}",
+            "verifyWallet": "POST /api/mock/compliance/verify/{wallet_address}",
+            "unverifyWallet": "POST /api/mock/compliance/unverify/{wallet_address}",
+            "getStats": "GET /api/mock/compliance/stats",
+            "getVerified": "GET /api/mock/compliance/verified",
+            "health": "GET /api/mock/compliance/health",
+            "info": "GET /api/mock/compliance/info"
+        },
+        features={
+            "walletVerification": "Check and manage wallet verification status",
+            "complianceStats": "Get compliance statistics and metrics",
+            "auditLogging": "Comprehensive audit trail for compliance actions",
+            "database": "PostgreSQL storage for verification records"
+        }
+    )
 
