@@ -41,6 +41,26 @@ class OrderStatusEnum(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class InvestorTierEnum(str, enum.Enum):
+    """Investor tier enumeration - values match database enum"""
+    RETAIL = "retail"
+    ACCREDITED = "accredited"
+    INSTITUTIONAL = "institutional"
+
+
+class WalletVerification(Base):
+    """Wallet verification status table"""
+    __tablename__ = "wallet_verifications"
+    
+    wallet_address = Column(String(42), primary_key=True, index=True)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    verified_by = Column(String(255), nullable=True)  # Admin/user who verified
+    investor_tier = Column(String(20), nullable=True, comment="Investor classification tier (retail, accredited, institutional)")
+    jurisdiction = Column(String(10), nullable=True, comment="Jurisdiction code (e.g., US, SG)")
+
+
 class NoteIssuance(Base):
     """Note issuance records table"""
     __tablename__ = "note_issuances"

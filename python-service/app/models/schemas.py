@@ -37,6 +37,8 @@ class ComplianceStatus(BaseModel):
     """Response model matching ComplianceStatus TypeScript interface"""
     is_verified: bool = Field(..., alias="isVerified")
     request_id: Optional[str] = Field(None, alias="requestId")
+    investor_tier: Optional[str] = Field(None, alias="investorTier", description="Investor tier (retail, accredited, institutional)")
+    jurisdiction: Optional[str] = Field(None, description="Jurisdiction code (e.g., US, SG)")
     
     class Config:
         populate_by_name = True
@@ -69,6 +71,15 @@ class WalletVerificationStatus(BaseModel):
     """Response model matching WalletVerificationStatus TypeScript interface"""
     is_verified: bool = Field(..., alias="isVerified")
     request_id: Optional[str] = Field(None, alias="requestId")
+    
+    class Config:
+        populate_by_name = True
+
+
+class WalletVerificationRequest(BaseModel):
+    """Request model for wallet verification with investor tier and jurisdiction"""
+    tier: Optional[str] = Field(None, description="Investor tier (retail, accredited, institutional)")
+    jurisdiction: Optional[str] = Field(None, description="Jurisdiction code (e.g., US, SG)")
     
     class Config:
         populate_by_name = True

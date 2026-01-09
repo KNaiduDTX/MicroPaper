@@ -2,7 +2,7 @@
 Compliance API routes
 """
 
-from fastapi import APIRouter, HTTPException, status, Path, Depends, Request, Query
+from fastapi import APIRouter, HTTPException, status, Path, Depends, Request, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from datetime import datetime, timezone
@@ -19,11 +19,13 @@ from app.models.schemas import (
     ComplianceStatsResponse,
     VerifiedWalletsResponse,
     WalletVerificationResponse,
+    WalletVerificationRequest,
     ServiceInfoResponse,
     AuditLogsResponse,
     AuditLogEntry,
     WalletDetailsResponse
 )
+from app.utils.compliance_checks import validate_investment_eligibility
 
 router = APIRouter()
 
@@ -435,9 +437,18 @@ async def check_status(
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
     
+    # Get investor tier and jurisdiction if wallet exists
+    investor_tier = None
+    jurisdiction = None
+    if wallet:
+        investor_tier = wallet.investor_tier
+        jurisdiction = wallet.jurisdiction
+    
     return ComplianceStatusResponse(
         is_verified=is_verified,
-        request_id=request_id
+        request_id=request_id,
+        investor_tier=investor_tier,
+        jurisdiction=jurisdiction
     )
 
 
@@ -445,10 +456,18 @@ async def check_status(
 async def verify_wallet(
     request: Request,
     wallet_address: str = Path(..., description="Ethereum wallet address"),
+    verification_data: Optional[WalletVerificationRequest] = Body(None, description="Optional verification data with tier and jurisdiction"),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Manually verify a wallet address (admin/demo use)
+    Accepts optional tier and jurisdiction in request body
+    
+    Request Body (optional):
+    {
+        "tier": "retail" | "accredited" | "institutional",
+        "jurisdiction": "US" | "SG" | etc.
+    }
     """
     normalized_address = _validate_wallet_address(wallet_address)
     request_id = request.headers.get("X-Request-ID")
@@ -458,6 +477,13 @@ async def verify_wallet(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database not available"
         )
+    
+    # Parse request body if provided
+    tier = None
+    jurisdiction = None
+    if verification_data:
+        tier = verification_data.tier
+        jurisdiction = verification_data.jurisdiction
     
     # Update in database
     from sqlalchemy import select
@@ -471,11 +497,17 @@ async def verify_wallet(
             wallet.is_verified = True
             wallet.updated_at = datetime.now(timezone.utc)
             wallet.verified_by = "admin_demo"
+            if tier is not None:
+                wallet.investor_tier = tier
+            if jurisdiction is not None:
+                wallet.jurisdiction = jurisdiction
         else:
             wallet = WalletVerification(
                 wallet_address=normalized_address,
                 is_verified=True,
-                verified_by="admin_demo"
+                verified_by="admin_demo",
+                investor_tier=tier,
+                jurisdiction=jurisdiction
             )
             db.add(wallet)
         
