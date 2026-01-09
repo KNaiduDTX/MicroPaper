@@ -16,8 +16,10 @@ from app.models.database import (
     WalletVerification, 
     Order, 
     InvestorHolding,
+    Trade,
     OfferingStatusEnum,
-    OrderStatusEnum
+    OrderStatusEnum,
+    OrderSideEnum
 )
 from app.models.schemas import (
     OfferingResponse,
@@ -25,9 +27,14 @@ from app.models.schemas import (
     OrderCreate,
     OrderResponse,
     HoldingResponse,
-    SettleResponse
+    SettleResponse,
+    RiskBreakdownResponse,
+    TradeResponse,
+    MatchResponse
 )
+from app.utils.compliance_checks import validate_investment_eligibility
 from app.utils.yield_calculator import YieldCalculator
+from app.services.risk_engine import RiskEngine
 from app.middleware.admin_auth import validate_admin_key
 
 logger = logging.getLogger(__name__)
@@ -108,7 +115,7 @@ async def get_offerings(
         result = await db.execute(query)
         notes = result.scalars().all()
         
-        # Format results with yield calculations
+        # Format results with yield calculations and protection summary
         formatted_offerings = []
         for note in notes:
             # Calculate maturity value and APY
@@ -125,6 +132,14 @@ async def get_offerings(
             except Exception as e:
                 logger.warning(f"Error calculating yield for note {note.id}: {e}", extra={"request_id": request_id})
             
+            # Calculate protection summary using RiskEngine
+            protection_summary = None
+            try:
+                risk_data = await RiskEngine.calculate_protection_waterfall(note.id, db)
+                protection_summary = risk_data.get("protection_summary")
+            except Exception as e:
+                logger.warning(f"Error calculating protection for note {note.id}: {e}", extra={"request_id": request_id})
+            
             formatted_offerings.append(OfferingResponse(
                 id=note.id,
                 isin=note.isin,
@@ -137,7 +152,8 @@ async def get_offerings(
                 offering_status=note.offering_status,
                 issued_at=format_datetime(note.issued_at),
                 maturity_value_cents=maturity_value_cents,
-                apy=apy
+                apy=apy,
+                protection_summary=protection_summary
             ))
         
         return OfferingsResponse(
@@ -157,18 +173,24 @@ async def get_offerings(
         )
 
 
-@router.post("/invest", response_model=OrderResponse)
-async def create_investment_order(
+@router.post("/order", response_model=OrderResponse)
+async def create_order(
     request: Request,
     order_data: OrderCreate,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create an investment order for a note.
-    Validates that:
-    1. Investor wallet is KYC'd (verified)
-    2. Note exists and is open for investment
-    3. Amount meets minimum subscription requirement
+    Create an order (buy or sell) for a note.
+    
+    For Buy Orders:
+    - Validates investor wallet is KYC'd (verified)
+    - Validates compliance eligibility
+    - Validates note exists and is open for investment (primary market)
+    - Validates amount meets minimum subscription requirement
+    
+    For Sell Orders:
+    - Validates investor wallet has sufficient holdings
+    - Validates note exists
     """
     request_id = request.headers.get("X-Request-ID")
     
@@ -190,22 +212,15 @@ async def create_investment_order(
     
     investor_wallet = investor_wallet.lower()
     
-    try:
-        # Validate investor is KYC'd
-        wallet_result = await db.execute(
-            select(WalletVerification).where(
-                WalletVerification.wallet_address == investor_wallet
-            )
+    # Validate side
+    if order_data.side not in ['buy', 'sell']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order side must be 'buy' or 'sell'"
         )
-        wallet = wallet_result.scalar_one_or_none()
-        
-        if not wallet or not wallet.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Investor wallet must be verified (KYC'd) to place orders"
-            )
-        
-        # Validate note exists and is open
+    
+    try:
+        # Validate note exists
         note_result = await db.execute(
             select(NoteIssuance).where(NoteIssuance.id == order_data.note_id)
         )
@@ -217,31 +232,74 @@ async def create_investment_order(
                 detail=f"Note with ID {order_data.note_id} not found"
             )
         
-        if note.offering_status != OfferingStatusEnum.OPEN.value:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Note offering is not open for investment (status: {note.offering_status.value})"
+        # Validate investor wallet
+        wallet_result = await db.execute(
+            select(WalletVerification).where(
+                WalletVerification.wallet_address == investor_wallet
             )
+        )
+        wallet = wallet_result.scalar_one_or_none()
         
-        # Validate amount meets minimum subscription
-        if order_data.amount < note.min_subscription_amount:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Investment amount must be at least {note.min_subscription_amount} cents (${note.min_subscription_amount / 100:.2f})"
-            )
+        if order_data.side == 'buy':
+            # Buy order validations
+            if not wallet or not wallet.is_verified:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Investor wallet must be verified (KYC'd) to place buy orders"
+                )
+            
+            # Validate compliance eligibility
+            if wallet.investor_tier and wallet.jurisdiction:
+                is_eligible = validate_investment_eligibility(
+                    wallet_tier=wallet.investor_tier,
+                    wallet_jurisdiction=wallet.jurisdiction
+                )
+                if not is_eligible:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Investor is not eligible to invest based on compliance rules"
+                    )
+            
+            # For primary market buy orders, validate offering is open
+            if note.offering_status == OfferingStatusEnum.OPEN.value:
+                # Validate amount meets minimum subscription
+                if order_data.amount < note.min_subscription_amount:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Investment amount must be at least {note.min_subscription_amount} cents (${note.min_subscription_amount / 100:.2f})"
+                    )
+                
+                # Validate amount is multiple of min_subscription_amount
+                if order_data.amount % note.min_subscription_amount != 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Investment amount must be a multiple of {note.min_subscription_amount} cents"
+                    )
         
-        # Validate amount is multiple of min_subscription_amount (business rule)
-        if order_data.amount % note.min_subscription_amount != 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Investment amount must be a multiple of {note.min_subscription_amount} cents"
+        elif order_data.side == 'sell':
+            # Sell order validations - check sufficient holdings
+            holdings_result = await db.execute(
+                select(func.sum(InvestorHolding.quantity_held))
+                .where(
+                    InvestorHolding.wallet_address == investor_wallet,
+                    InvestorHolding.note_id == order_data.note_id
+                )
             )
+            total_holdings = holdings_result.scalar() or 0
+            
+            if total_holdings < order_data.amount:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Insufficient holdings. Available: {total_holdings} cents, Requested: {order_data.amount} cents"
+                )
         
         # Create order
         order = Order(
             investor_wallet=investor_wallet,
             note_id=order_data.note_id,
             amount=order_data.amount,
+            side=order_data.side,
+            price=order_data.price,
             status=OrderStatusEnum.PENDING.value,
             request_id=request_id
         )
@@ -251,8 +309,8 @@ async def create_investment_order(
         await db.refresh(order)
         
         logger.info(
-            f"Investment order created: Order ID {order.id}, Note {order_data.note_id}, Amount {order_data.amount} cents",
-            extra={"request_id": request_id, "order_id": order.id, "note_id": order_data.note_id}
+            f"Order created: Order ID {order.id}, Side {order.side}, Note {order_data.note_id}, Amount {order_data.amount} cents",
+            extra={"request_id": request_id, "order_id": order.id, "note_id": order_data.note_id, "side": order.side}
         )
         
         return OrderResponse(
@@ -260,6 +318,8 @@ async def create_investment_order(
             investor_wallet=order.investor_wallet,
             note_id=order.note_id,
             amount=order.amount,
+            side=order.side,
+            price=order.price,
             status=order.status,
             created_at=format_datetime(order.created_at),
             filled_at=format_datetime(order.filled_at) if order.filled_at else None,
@@ -276,8 +336,31 @@ async def create_investment_order(
         logger.error(f"Error creating investment order: {e}", extra={"request_id": request_id}, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create investment order: {str(e)}"
+            detail=f"Failed to create order: {str(e)}"
         )
+
+
+# Keep /invest as deprecated alias for backward compatibility
+@router.post("/invest", response_model=OrderResponse)
+async def create_investment_order_deprecated(
+    request: Request,
+    order_data: OrderCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    [DEPRECATED] Use POST /api/market/order instead.
+    Create an investment order for a note (buy orders only).
+    """
+    # Set side to 'buy' if not provided for backward compatibility
+    if not hasattr(order_data, 'side') or order_data.side is None:
+        order_data.side = 'buy'
+    elif order_data.side != 'buy':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This endpoint only supports buy orders. Use POST /api/market/order for sell orders."
+        )
+    
+    return await create_order(request, order_data, db)
 
 
 @router.post("/settle/{note_id}", response_model=SettleResponse)
@@ -371,7 +454,7 @@ async def settle_note(
             holdings_created += 1
             
             # Update order status
-                order.status = OrderStatusEnum.FILLED.value
+            order.status = OrderStatusEnum.FILLED.value
             order.filled_at = filled_at
             orders_filled += 1
         
@@ -488,4 +571,329 @@ async def get_holdings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve holdings: {str(e)}"
+        )
+
+
+@router.get("/notes/{note_id}/risk-breakdown", response_model=RiskBreakdownResponse)
+async def get_risk_breakdown(
+    request: Request,
+    note_id: int = Path(..., description="Note ID to get risk breakdown for"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get risk breakdown/waterfall for a specific note.
+    
+    Returns the protection waterfall showing:
+    - Collateral coverage
+    - Guarantee coverage
+    - Insurance pool claim
+    - Uncovered exposure
+    - Protection summary percentage
+    """
+    request_id = request.headers.get("X-Request-ID")
+    
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available"
+        )
+    
+    try:
+        # Calculate protection waterfall using RiskEngine
+        risk_data = await RiskEngine.calculate_protection_waterfall(note_id, db)
+        
+        return RiskBreakdownResponse(
+            face_value=risk_data["face_value"],
+            collateral_coverage=risk_data["collateral_coverage"],
+            guarantee_coverage=risk_data["guarantee_coverage"],
+            insurance_pool_claim=risk_data["insurance_pool_claim"],
+            uncovered_exposure=risk_data["uncovered_exposure"],
+            protection_summary=risk_data["protection_summary"],
+            protection_percent=risk_data["protection_percent"]
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error calculating risk breakdown for note {note_id}: {e}", extra={"request_id": request_id}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to calculate risk breakdown: {str(e)}"
+        )
+
+
+async def match_orders(note_id: int, db: AsyncSession) -> List[Trade]:
+    """
+    Match buy and sell orders for a note.
+    
+    Matching Logic:
+    - Fetches all pending orders for the note
+    - Matches Buy orders with Sell orders where buy_price >= sell_price
+    - Creates trade records
+    - Updates investor_holdings (decrement seller, increment buyer)
+    - Updates order statuses to 'filled'
+    
+    Args:
+        note_id: ID of the note to match orders for
+        db: Database session
+    
+    Returns:
+        List of executed trades
+    """
+    # Fetch all pending orders for this note
+    orders_result = await db.execute(
+        select(Order).where(
+            and_(
+                Order.note_id == note_id,
+                Order.status == OrderStatusEnum.PENDING.value
+            )
+        ).order_by(Order.created_at.asc())
+    )
+    all_orders = orders_result.scalars().all()
+    
+    # Separate buy and sell orders
+    buy_orders = [o for o in all_orders if o.side == OrderSideEnum.BUY.value]
+    sell_orders = [o for o in all_orders if o.side == OrderSideEnum.SELL.value]
+    
+    executed_trades = []
+    filled_at = datetime.now(timezone.utc)
+    
+    # Match orders: buy_price >= sell_price
+    for buy_order in buy_orders:
+        if buy_order.status != OrderStatusEnum.PENDING.value:
+            continue
+        
+        # Find matching sell orders
+        # If buy_order has a price, match with sell orders where sell_price <= buy_price
+        # If buy_order has no price (market order), match with any sell order
+        matching_sells = []
+        for sell_order in sell_orders:
+            if sell_order.status != OrderStatusEnum.PENDING.value:
+                continue
+            
+            # Price matching logic
+            if buy_order.price is not None and sell_order.price is not None:
+                # Both are limit orders - match if buy_price >= sell_price
+                if buy_order.price >= sell_order.price:
+                    matching_sells.append(sell_order)
+            elif buy_order.price is None:
+                # Market buy order - match with any sell order
+                matching_sells.append(sell_order)
+            elif sell_order.price is None:
+                # Market sell order - match with any buy order
+                matching_sells.append(sell_order)
+        
+        # Sort matching sells by price (lowest first) and creation time
+        matching_sells.sort(key=lambda x: (x.price if x.price is not None else 0, x.created_at))
+        
+        # Match buy order with sell orders
+        remaining_buy_amount = buy_order.amount
+        
+        for sell_order in matching_sells:
+            if remaining_buy_amount <= 0:
+                break
+            
+            # Determine trade quantity (min of buy remaining and sell remaining)
+            sell_remaining = sell_order.amount - sum(
+                t.quantity for t in executed_trades 
+                if t.sell_order_id == sell_order.id
+            )
+            
+            if sell_remaining <= 0:
+                continue
+            
+            trade_quantity = min(remaining_buy_amount, sell_remaining)
+            
+            # Determine trade price
+            # Use the sell order price if available, otherwise buy order price, otherwise market price
+            if sell_order.price is not None:
+                trade_price = sell_order.price
+            elif buy_order.price is not None:
+                trade_price = buy_order.price
+            else:
+                # Both are market orders - use a default price (could be last trade price or note par value)
+                # For now, use 10000 cents ($100) as default
+                trade_price = 10000
+            
+            # Create trade record
+            trade = Trade(
+                buyer_wallet=buy_order.investor_wallet,
+                seller_wallet=sell_order.investor_wallet,
+                note_id=note_id,
+                quantity=trade_quantity,
+                price=trade_price,
+                buy_order_id=buy_order.id,
+                sell_order_id=sell_order.id,
+                timestamp=filled_at
+            )
+            db.add(trade)
+            executed_trades.append(trade)
+            
+            # Update holdings: decrement seller, increment buyer
+            # Find or create seller holding to decrement
+            seller_holding_result = await db.execute(
+                select(InvestorHolding).where(
+                    and_(
+                        InvestorHolding.wallet_address == sell_order.investor_wallet,
+                        InvestorHolding.note_id == note_id
+                    )
+                ).order_by(InvestorHolding.acquired_at.asc())
+            )
+            seller_holdings = seller_holding_result.scalars().all()
+            
+            # Decrement from seller holdings (FIFO)
+            remaining_to_decrement = trade_quantity
+            for holding in seller_holdings:
+                if remaining_to_decrement <= 0:
+                    break
+                if holding.quantity_held > 0:
+                    decrement_amount = min(remaining_to_decrement, holding.quantity_held)
+                    holding.quantity_held -= decrement_amount
+                    remaining_to_decrement -= decrement_amount
+            
+            # Increment buyer holding
+            # Check if buyer already has a holding for this note
+            buyer_holding_result = await db.execute(
+                select(InvestorHolding).where(
+                    and_(
+                        InvestorHolding.wallet_address == buy_order.investor_wallet,
+                        InvestorHolding.note_id == note_id
+                    )
+                ).order_by(InvestorHolding.acquired_at.desc()).limit(1)
+            )
+            buyer_holding = buyer_holding_result.scalar_one_or_none()
+            
+            if buyer_holding:
+                # Add to existing holding
+                buyer_holding.quantity_held += trade_quantity
+            else:
+                # Create new holding
+                buyer_holding = InvestorHolding(
+                    wallet_address=buy_order.investor_wallet,
+                    note_id=note_id,
+                    quantity_held=trade_quantity,
+                    acquisition_price=trade_price
+                )
+                db.add(buyer_holding)
+            
+            # Update order statuses
+            remaining_buy_amount -= trade_quantity
+            
+            # Check if buy order is fully filled
+            if remaining_buy_amount <= 0:
+                buy_order.status = OrderStatusEnum.FILLED.value
+                buy_order.filled_at = filled_at
+            
+            # Check if sell order is fully filled
+            sell_filled_quantity = sum(
+                t.quantity for t in executed_trades 
+                if t.sell_order_id == sell_order.id
+            ) + trade_quantity
+            
+            if sell_filled_quantity >= sell_order.amount:
+                sell_order.status = OrderStatusEnum.FILLED.value
+                sell_order.filled_at = filled_at
+    
+    return executed_trades
+
+
+@router.post("/match/{note_id}", response_model=MatchResponse)
+async def match_orders_endpoint(
+    request: Request,
+    note_id: int = Path(..., description="Note ID to match orders for"),
+    db: AsyncSession = Depends(get_db),
+    _admin_auth: bool = Depends(validate_admin_key)
+):
+    """
+    Match buy and sell orders for a note (Admin only).
+    
+    Requires X-Admin-Key header for authentication.
+    
+    This endpoint:
+    1. Fetches all pending orders for the note
+    2. Matches Buy orders with Sell orders where buy_price >= sell_price
+    3. Creates trade records
+    4. Updates investor_holdings (decrement seller, increment buyer)
+    5. Updates order statuses to 'filled'
+    """
+    request_id = request.headers.get("X-Request-ID")
+    
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available"
+        )
+    
+    try:
+        # Validate note exists
+        note_result = await db.execute(
+            select(NoteIssuance).where(NoteIssuance.id == note_id)
+        )
+        note = note_result.scalar_one_or_none()
+        
+        if not note:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Note with ID {note_id} not found"
+            )
+        
+        # Execute matching
+        executed_trades = await match_orders(note_id, db)
+        
+        # Commit all changes
+        await db.commit()
+        
+        # Refresh trades to get IDs
+        for trade in executed_trades:
+            await db.refresh(trade)
+        
+        # Format trade responses
+        trade_responses = [
+            TradeResponse(
+                id=trade.id,
+                buyer_wallet=trade.buyer_wallet,
+                seller_wallet=trade.seller_wallet,
+                note_id=trade.note_id,
+                quantity=trade.quantity,
+                price=trade.price,
+                buy_order_id=trade.buy_order_id,
+                sell_order_id=trade.sell_order_id,
+                timestamp=format_datetime(trade.timestamp)
+            )
+            for trade in executed_trades
+        ]
+        
+        total_quantity = sum(trade.quantity for trade in executed_trades)
+        
+        logger.info(
+            f"Order matching completed for note {note_id}: {len(executed_trades)} trades executed, {total_quantity} cents total",
+            extra={"request_id": request_id, "note_id": note_id, "trades_count": len(executed_trades)}
+        )
+        
+        return MatchResponse(
+            success=True,
+            message=f"Successfully matched orders for note {note_id}",
+            note_id=note_id,
+            trades_executed=len(executed_trades),
+            total_quantity=total_quantity,
+            trades=trade_responses,
+            request_id=request_id
+        )
+    except HTTPException:
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id}, exc_info=True)
+        raise
+    except Exception as e:
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id}, exc_info=True)
+        logger.error(f"Error matching orders: {e}", extra={"request_id": request_id}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to match orders: {str(e)}"
         )

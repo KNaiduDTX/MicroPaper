@@ -232,6 +232,21 @@ class OfferingResponse(BaseModel):
     issued_at: str = Field(..., alias="issuedAt")
     maturity_value_cents: Optional[int] = Field(None, alias="maturityValueCents", description="Calculated maturity value in cents")
     apy: Optional[float] = Field(None, description="Annual Percentage Yield")
+    protection_summary: Optional[str] = Field(None, alias="protectionSummary", description="Protection summary (e.g., '80% Secured')")
+    
+    class Config:
+        populate_by_name = True
+
+
+class RiskBreakdownResponse(BaseModel):
+    """Response model for risk breakdown/waterfall"""
+    face_value: int = Field(..., alias="faceValue", description="Note face value in cents")
+    collateral_coverage: int = Field(..., alias="collateralCoverage", description="Collateral coverage in cents")
+    guarantee_coverage: int = Field(..., alias="guaranteeCoverage", description="Guarantee coverage in cents")
+    insurance_pool_claim: int = Field(..., alias="insurancePoolClaim", description="Insurance pool claim in cents")
+    uncovered_exposure: int = Field(..., alias="uncoveredExposure", description="Uncovered exposure in cents")
+    protection_summary: str = Field(..., alias="protectionSummary", description="Protection summary (e.g., '70% Secured')")
+    protection_percent: float = Field(..., alias="protectionPercent", description="Protection percentage")
     
     class Config:
         populate_by_name = True
@@ -250,9 +265,11 @@ class OfferingsResponse(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    """Request model for creating an investment order"""
-    note_id: int = Field(..., alias="noteId", description="ID of the note to invest in")
-    amount: int = Field(..., description="Investment amount in cents (must be >= min_subscription_amount)")
+    """Request model for creating an order (buy or sell)"""
+    note_id: int = Field(..., alias="noteId", description="ID of the note")
+    amount: int = Field(..., description="Order amount in cents")
+    side: str = Field(..., description="Order side: 'buy' or 'sell'")
+    price: Optional[int] = Field(None, description="Price per unit in cents (for limit orders, optional)")
     
     class Config:
         populate_by_name = True
@@ -264,9 +281,41 @@ class OrderResponse(BaseModel):
     investor_wallet: str = Field(..., alias="investorWallet")
     note_id: int = Field(..., alias="noteId")
     amount: int = Field(..., description="Order amount in cents")
+    side: str = Field(..., description="Order side: 'buy' or 'sell'")
+    price: Optional[int] = Field(None, description="Price per unit in cents")
     status: str
     created_at: str = Field(..., alias="createdAt")
     filled_at: Optional[str] = Field(None, alias="filledAt")
+    request_id: Optional[str] = Field(None, alias="requestId")
+    
+    class Config:
+        populate_by_name = True
+
+
+class TradeResponse(BaseModel):
+    """Response model for executed trade"""
+    id: int
+    buyer_wallet: str = Field(..., alias="buyerWallet")
+    seller_wallet: str = Field(..., alias="sellerWallet")
+    note_id: int = Field(..., alias="noteId")
+    quantity: int = Field(..., description="Trade quantity in cents")
+    price: int = Field(..., description="Price per unit in cents")
+    buy_order_id: Optional[int] = Field(None, alias="buyOrderId")
+    sell_order_id: Optional[int] = Field(None, alias="sellOrderId")
+    timestamp: str
+    
+    class Config:
+        populate_by_name = True
+
+
+class MatchResponse(BaseModel):
+    """Response model for order matching"""
+    success: bool
+    message: str
+    note_id: int = Field(..., alias="noteId")
+    trades_executed: int = Field(..., alias="tradesExecuted")
+    total_quantity: int = Field(..., alias="totalQuantity")
+    trades: List[TradeResponse] = Field(default_factory=list)
     request_id: Optional[str] = Field(None, alias="requestId")
     
     class Config:

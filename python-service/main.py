@@ -133,9 +133,12 @@ async def root():
             },
             "market": {
                 "getOfferings": "GET /api/market/offerings",
-                "invest": "POST /api/market/invest",
-                "settle": "POST /api/market/settle/{note_id}",
-                "getHoldings": "GET /api/market/holdings"
+                "createOrder": "POST /api/market/order",
+                "invest": "POST /api/market/invest [DEPRECATED - use /order]",
+                "matchOrders": "POST /api/market/match/{note_id} [Admin only]",
+                "settle": "POST /api/market/settle/{note_id} [Admin only]",
+                "getHoldings": "GET /api/market/holdings",
+                "getRiskBreakdown": "GET /api/market/notes/{note_id}/risk-breakdown"
             }
         }
     }
