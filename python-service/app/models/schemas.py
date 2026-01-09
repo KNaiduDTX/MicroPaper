@@ -113,3 +113,92 @@ class ServiceInfoResponse(BaseModel):
     endpoints: dict
     features: dict
 
+
+# Note Management Types
+class NoteUpdateRequest(BaseModel):
+    """Request model for updating note status"""
+    status: str = Field(..., description="New status (issued, redeemed, expired)")
+    
+    class Config:
+        populate_by_name = True
+
+
+class NoteUpdateResponse(BaseModel):
+    """Response model for note update"""
+    id: int
+    isin: str
+    status: str
+    message: str
+    
+    class Config:
+        populate_by_name = True
+
+
+class NoteStatsResponse(BaseModel):
+    """Response model for note statistics"""
+    total_notes: int = Field(..., alias="totalNotes")
+    total_amount: int = Field(..., alias="totalAmount")
+    issued_count: int = Field(..., alias="issuedCount")
+    redeemed_count: int = Field(..., alias="redeemedCount")
+    expired_count: int = Field(..., alias="expiredCount")
+    average_amount: float = Field(..., alias="averageAmount")
+    
+    class Config:
+        populate_by_name = True
+
+
+class PaginatedNotesResponse(BaseModel):
+    """Response model for paginated notes"""
+    notes: List[dict]
+    total: int
+    page: int
+    limit: int
+    has_more: bool = Field(..., alias="hasMore")
+    
+    class Config:
+        populate_by_name = True
+
+
+# Audit Log Types
+class AuditLogEntry(BaseModel):
+    """Single audit log entry"""
+    id: int
+    wallet_address: str = Field(..., alias="walletAddress")
+    action: str
+    performed_by: Optional[str] = Field(None, alias="performedBy")
+    request_id: Optional[str] = Field(None, alias="requestId")
+    timestamp: str
+    metadata: Optional[dict] = None
+    
+    class Config:
+        populate_by_name = True
+
+
+class AuditLogsResponse(BaseModel):
+    """Response model for audit logs query"""
+    logs: List[AuditLogEntry]
+    total: int
+    page: int
+    limit: int
+    has_more: bool = Field(..., alias="hasMore")
+    
+    class Config:
+        populate_by_name = True
+
+
+# Wallet Details Types
+class WalletDetailsResponse(BaseModel):
+    """Response model for wallet details"""
+    wallet_address: str = Field(..., alias="walletAddress")
+    is_verified: bool = Field(..., alias="isVerified")
+    verified_at: Optional[str] = Field(None, alias="verifiedAt")
+    verified_by: Optional[str] = Field(None, alias="verifiedBy")
+    total_notes: int = Field(..., alias="totalNotes")
+    total_amount: int = Field(..., alias="totalAmount")
+    first_note_date: Optional[str] = Field(None, alias="firstNoteDate")
+    last_note_date: Optional[str] = Field(None, alias="lastNoteDate")
+    notes: List[dict] = Field(default_factory=list)
+    
+    class Config:
+        populate_by_name = True
+
