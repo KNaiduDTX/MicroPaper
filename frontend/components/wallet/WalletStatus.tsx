@@ -35,13 +35,31 @@ export const WalletStatus: React.FC<WalletStatusProps> = ({ walletAddress }) => 
     );
   }
 
+  const getErrorMessage = (error: any): string => {
+    if (!error) return 'An unexpected error occurred';
+    
+    const errorCode = error.error?.code;
+    const errorMessage = error.error?.message || 'Failed to check wallet status';
+    
+    switch (errorCode) {
+      case 'NETWORK_ERROR':
+        return 'Unable to connect to the server. Please check your internet connection.';
+      case 'UNAUTHORIZED':
+        return 'Authentication failed. Please refresh the page.';
+      case 'VALIDATION_ERROR':
+        return 'Invalid wallet address format.';
+      default:
+        return errorMessage || 'An error occurred while checking wallet status.';
+    }
+  };
+
   if (checkStatus.error) {
     return (
       <Card>
         <Alert
           type="error"
-          title="Error"
-          message={checkStatus.error.error.message || 'Failed to check wallet status'}
+          title="Error Checking Status"
+          message={getErrorMessage(checkStatus.error)}
         />
       </Card>
     );

@@ -4,6 +4,8 @@ import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { ComplianceStats } from '@/components/compliance/ComplianceStats';
 import { WalletList } from '@/components/wallet/WalletList';
+import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { FileText, Shield, TrendingUp } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -13,6 +15,10 @@ export default function DashboardPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-2">Overview of your MicroPaper system</p>
+        </div>
+
+        <div className="mb-8">
+          <DashboardStats />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -47,9 +53,13 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <ComplianceStats />
           <WalletList />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RecentActivity />
         </div>
       </div>
     </div>

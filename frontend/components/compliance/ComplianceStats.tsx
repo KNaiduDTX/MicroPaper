@@ -30,14 +30,38 @@ export const ComplianceStats: React.FC = () => {
     );
   }
 
+  const getErrorMessage = (error: any): string => {
+    if (!error) return 'An unexpected error occurred';
+    
+    const errorCode = error.error?.code;
+    const errorMessage = error.error?.message || 'Failed to load compliance statistics';
+    
+    switch (errorCode) {
+      case 'NETWORK_ERROR':
+        return 'Unable to connect to the server. Please check your internet connection and try again.';
+      case 'UNAUTHORIZED':
+        return 'Authentication failed. Please refresh the page.';
+      default:
+        return errorMessage || 'An error occurred while loading statistics. Please try again.';
+    }
+  };
+
   if (stats.error) {
     return (
       <Card title="Compliance Statistics">
         <Alert
           type="error"
-          title="Error"
-          message={stats.error.error.message || 'Failed to load compliance statistics'}
+          title="Error Loading Statistics"
+          message={getErrorMessage(stats.error)}
         />
+        <Button
+          variant="outline"
+          onClick={() => refreshStats()}
+          className="mt-4"
+          disabled={stats.loading}
+        >
+          {stats.loading ? 'Loading...' : 'Retry'}
+        </Button>
       </Card>
     );
   }

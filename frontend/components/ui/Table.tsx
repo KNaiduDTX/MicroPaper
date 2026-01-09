@@ -21,15 +21,12 @@ interface TableProps<T> {
 export function Table<T extends Record<string, unknown>>({
   columns,
   data,
-  emptyMessage = 'No data available',
+  emptyMessage,
   className = '',
 }: TableProps<T>) {
+  // Don't render empty message here - let parent component handle it with EmptyState
   if (data.length === 0) {
-    return (
-      <div className={`text-center py-8 text-gray-500 ${className}`}>
-        {emptyMessage}
-      </div>
-    );
+    return null;
   }
 
   return (

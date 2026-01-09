@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { noteIssuanceSchema, NoteIssuanceFormData } from '@/lib/validation/schemas';
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
 import { useNoteIssuance } from '@/lib/hooks/useNoteIssuance';
+import { useToast } from '@/components/ui/Toast';
 import { NoteIssuanceResponse } from '@/types/note';
 
 interface NoteIssuanceFormProps {
@@ -22,8 +24,9 @@ interface NoteIssuanceFormProps {
 }
 
 export const NoteIssuanceForm: React.FC<NoteIssuanceFormProps> = ({ onSuccess }) => {
+  const router = useRouter();
   const { issue, loading, error, data, reset } = useNoteIssuance();
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const {
     handleSubmit,
@@ -39,46 +42,63 @@ export const NoteIssuanceForm: React.FC<NoteIssuanceFormProps> = ({ onSuccess })
   const maturityDate = watch('maturityDate') || '';
 
   const onSubmit = async (data: NoteIssuanceFormData) => {
-    setSuccessMessage(null);
     reset();
 
     try {
       const response = await issue(data);
       if (response) {
-        setSuccessMessage(
-          `Note issued successfully! ISIN: ${response.isin}`
-        );
+        showToast({
+          type: 'success',
+          title: 'Note Issued Successfully',
+          message: `Note issued with ISIN: ${response.isin}. Amount: $${data.amount.toLocaleString()}`,
+          duration: 5000,
+        });
+        
         if (onSuccess) {
           onSuccess(response);
         }
+        
+        // Reset form after success
+        setTimeout(() => {
+          router.push('/notes');
+        }, 2000);
       }
     } catch (err) {
-      // Error is handled by the hook
+      // Error is handled by the hook and will be displayed below
       console.error('Error issuing note:', err);
+    }
+  };
+
+  const getErrorMessage = (error: any): string => {
+    if (!error) return 'An unexpected error occurred';
+    
+    const errorCode = error.error?.code;
+    const errorMessage = error.error?.message || 'Failed to issue note';
+    
+    // Provide user-friendly error messages
+    switch (errorCode) {
+      case 'NETWORK_ERROR':
+        return 'Unable to connect to the server. Please check your internet connection and try again.';
+      case 'VALIDATION_ERROR':
+        return errorMessage || 'Please check your input and try again.';
+      case 'UNAUTHORIZED':
+        return 'Authentication failed. Please refresh the page and try again.';
+      case 'CONFLICT':
+        return 'A note with this ISIN already exists. Please try again.';
+      default:
+        return errorMessage || 'An error occurred while issuing the note. Please try again.';
     }
   };
 
   return (
     <Card title="Issue Traditional Note">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {successMessage && (
-          <Alert type="success" message={successMessage} onClose={() => setSuccessMessage(null)} />
-        )}
-
         {error && (
           <Alert
             type="error"
-            title="Error"
-            message={error.error.message || 'Failed to issue note'}
+            title="Error Issuing Note"
+            message={getErrorMessage(error)}
             onClose={() => reset()}
-          />
-        )}
-
-        {data && (
-          <Alert
-            type="success"
-            title="Success"
-            message={`Note issued with ISIN: ${data.isin}`}
           />
         )}
 
@@ -106,14 +126,13 @@ export const NoteIssuanceForm: React.FC<NoteIssuanceFormProps> = ({ onSuccess })
             variant="outline"
             onClick={() => {
               reset();
-              setSuccessMessage(null);
             }}
             disabled={loading}
           >
             Reset
           </Button>
-          <Button type="submit" variant="primary" isLoading={loading}>
-            Issue Note
+          <Button type="submit" variant="primary" isLoading={loading} disabled={loading}>
+            {loading ? 'Issuing Note...' : 'Issue Note'}
           </Button>
         </div>
       </form>

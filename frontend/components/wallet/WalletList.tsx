@@ -6,9 +6,10 @@
 
 import React, { useEffect } from 'react';
 import { Card } from '@/components/ui/Card';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Alert } from '@/components/ui/Alert';
 import { Table } from '@/components/ui/Table';
+import { SkeletonTable } from '@/components/ui/Skeleton';
+import { EmptyWalletsState } from '@/components/ui/EmptyState';
 import { complianceApi } from '@/lib/api/compliance';
 import { useApi } from '@/lib/hooks/useApi';
 
@@ -23,8 +24,8 @@ export const WalletList: React.FC = () => {
   if (verifiedWallets.loading) {
     return (
       <Card title="Verified Wallets">
-        <div className="flex items-center justify-center py-8">
-          <LoadingSpinner />
+        <div className="py-8">
+          <SkeletonTable rows={5} columns={1} />
         </div>
       </Card>
     );
@@ -63,11 +64,11 @@ export const WalletList: React.FC = () => {
           Total verified wallets: <strong>{verifiedWallets.data?.count || 0}</strong>
         </p>
       </div>
-      <Table
-        columns={columns}
-        data={wallets}
-        emptyMessage="No verified wallets found"
-      />
+      {wallets.length === 0 ? (
+        <EmptyWalletsState />
+      ) : (
+        <Table columns={columns} data={wallets} />
+      )}
     </Card>
   );
 };

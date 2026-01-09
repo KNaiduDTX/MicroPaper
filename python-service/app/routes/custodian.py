@@ -5,7 +5,7 @@ Custodian API routes
 from fastapi import APIRouter, HTTPException, status, Depends, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import logging
 
@@ -110,16 +110,34 @@ async def get_notes(
         result = await db.execute(query)
         notes = result.scalars().all()
         
+        def format_datetime(dt: datetime) -> str:
+            """Format datetime to ISO 8601 with Z suffix for UTC"""
+            if dt is None:
+                return ""
+            
+            # If timezone-aware, convert to UTC
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc)
+            
+            # Format without timezone info, then add Z
+            # Remove microseconds if they exist, keep milliseconds
+            if dt.microsecond:
+                formatted = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+            else:
+                formatted = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+            
+            return formatted
+        
         return [
             {
                 "id": note.id,
                 "isin": note.isin,
                 "wallet_address": note.wallet_address,
                 "amount": note.amount,
-                "maturity_date": note.maturity_date.isoformat() + "Z",
+                "maturity_date": format_datetime(note.maturity_date),
                 "status": note.status,
-                "issued_at": note.issued_at.isoformat() + "Z",
-                "created_at": note.created_at.isoformat() + "Z"
+                "issued_at": format_datetime(note.issued_at),
+                "created_at": format_datetime(note.created_at)
             }
             for note in notes
         ]
