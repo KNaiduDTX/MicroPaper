@@ -68,7 +68,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "status": "healthy",
         "service": "micropaper-compliance",
         "database": db_status,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "version": "1.0.0"
     }
 
@@ -131,6 +131,7 @@ async def get_stats(
     verified_wallets = verified_result.scalar() or 0
     
     unverified_wallets = total_wallets - verified_wallets
+    # Prevent division by zero
     verification_rate = f"{(verified_wallets / total_wallets * 100):.2f}%" if total_wallets > 0 else "0%"
     
     return ComplianceStatsResponse(
@@ -209,10 +210,15 @@ async def get_audit_logs(
             conditions.append(ComplianceAuditLog.wallet_address == wallet_address.lower())
         
         if action:
-            conditions.append(ComplianceAuditLog.action.ilike(f"%{action}%"))
+            # Sanitize input: escape SQL wildcards to prevent injection
+            # SQLAlchemy's ilike handles parameterization, but we sanitize wildcards for safety
+            sanitized_action = action.replace('%', '\\%').replace('_', '\\_')
+            conditions.append(ComplianceAuditLog.action.ilike(f"%{sanitized_action}%"))
         
         if performed_by:
-            conditions.append(ComplianceAuditLog.performed_by.ilike(f"%{performed_by}%"))
+            # Sanitize input: escape SQL wildcards to prevent injection
+            sanitized_performed_by = performed_by.replace('%', '\\%').replace('_', '\\_')
+            conditions.append(ComplianceAuditLog.performed_by.ilike(f"%{sanitized_performed_by}%"))
         
         if from_date:
             try:
@@ -319,8 +325,9 @@ async def get_wallet_details(
         )
         wallet = wallet_result.scalar_one_or_none()
         
+        # Fix: Check wallet is not None before accessing attributes
         is_verified = wallet.is_verified if wallet else False
-        verified_at = format_datetime(wallet.updated_at) if wallet and wallet.is_verified else None
+        verified_at = format_datetime(wallet.updated_at) if (wallet and wallet.is_verified) else None
         verified_by = wallet.verified_by if wallet else None
         
         # Get all notes for this wallet
@@ -423,7 +430,10 @@ async def check_status(
     except Exception as e:
         logger.warning(f"Error logging audit trail: {e}", extra={"request_id": request_id})
         # Log error but don't fail the request
-        await db.rollback()
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
     
     return ComplianceStatusResponse(
         is_verified=is_verified,
@@ -459,7 +469,7 @@ async def verify_wallet(
     try:
         if wallet:
             wallet.is_verified = True
-            wallet.updated_at = datetime.utcnow()
+            wallet.updated_at = datetime.now(timezone.utc)
             wallet.verified_by = "admin_demo"
         else:
             wallet = WalletVerification(
@@ -479,8 +489,11 @@ async def verify_wallet(
         db.add(audit_log)
         await db.commit()
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Error verifying wallet: {e}", extra={"request_id": request_id})
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
+        logger.error(f"Error verifying wallet: {e}", extra={"request_id": request_id}, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to verify wallet: {str(e)}"
@@ -521,7 +534,7 @@ async def unverify_wallet(
     try:
         if wallet:
             wallet.is_verified = False
-            wallet.updated_at = datetime.utcnow()
+            wallet.updated_at = datetime.now(timezone.utc)
         else:
             wallet = WalletVerification(
                 wallet_address=normalized_address,
@@ -539,8 +552,11 @@ async def unverify_wallet(
         db.add(audit_log)
         await db.commit()
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Error unverifying wallet: {e}", extra={"request_id": request_id})
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
+        logger.error(f"Error unverifying wallet: {e}", extra={"request_id": request_id}, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to unverify wallet: {str(e)}"

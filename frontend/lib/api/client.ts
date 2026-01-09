@@ -61,7 +61,9 @@ class ApiClient {
       process.env.NEXT_PUBLIC_API_URL || 
       'http://localhost:3001';
     
-    // Get API key (prefer public env var for client-side access)
+    // SECURITY WARNING: API keys exposed in client-side code are visible to all users.
+    // For production, consider using Next.js API routes as a proxy to keep API keys server-side.
+    // This is acceptable for demo/mock services but should be changed for production.
     this.apiKey = 
       process.env.NEXT_PUBLIC_PYTHON_API_KEY || 
       process.env.PYTHON_API_KEY || 
@@ -70,6 +72,11 @@ class ApiClient {
     // Warn if API key is missing in production
     if (process.env.NODE_ENV === 'production' && !this.apiKey) {
       console.warn('⚠️  PYTHON_API_KEY not set. API calls may fail authentication.');
+    }
+    
+    // Security warning for exposed API keys
+    if (process.env.NODE_ENV === 'production' && this.apiKey) {
+      console.warn('⚠️  SECURITY: API key is exposed in client-side code. Consider using Next.js API routes as a proxy.');
     }
     
     this.client = axios.create({

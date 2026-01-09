@@ -47,8 +47,14 @@ async def issue_note(
     # Normalize wallet address
     wallet_address = request.wallet_address.lower()
     
-    # Parse maturity date
-    maturity_date = datetime.fromisoformat(request.maturity_date.replace('Z', '+00:00'))
+    # Parse maturity date with proper error handling
+    try:
+        maturity_date = datetime.fromisoformat(request.maturity_date.replace('Z', '+00:00'))
+    except (ValueError, AttributeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid maturity date format: {str(e)}"
+        )
     
     # Generate mock ISIN following ISO 6166 format
     country_code = "US"
@@ -57,7 +63,7 @@ async def issue_note(
     check_digit = random.randint(0, 9)
     isin = f"{country_code}{prefix}{random_number}{check_digit}"
     
-    issued_at = datetime.utcnow()
+    issued_at = datetime.now(timezone.utc)
     
     # Store in database
     try:
@@ -72,8 +78,11 @@ async def issue_note(
         db.add(note_issuance)
         await db.commit()
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Error issuing note: {e}")
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
+        logger.error(f"Error issuing note: {e}", exc_info=True)
         # Check if it's a duplicate ISIN error
         if "unique constraint" in str(e).lower() or "duplicate" in str(e).lower():
             raise HTTPException(
@@ -164,10 +173,14 @@ async def get_notes(
             conditions.append(NoteIssuance.wallet_address == wallet_address.lower())
         
         if status_filter:
-            conditions.append(NoteIssuance.status.ilike(status_filter.lower()))
+            # Sanitize input: escape SQL wildcards to prevent injection
+            sanitized_status = status_filter.lower().replace('%', '\\%').replace('_', '\\_')
+            conditions.append(NoteIssuance.status.ilike(sanitized_status))
         
         if isin:
-            conditions.append(NoteIssuance.isin.ilike(f"%{isin}%"))
+            # Sanitize input: escape SQL wildcards to prevent injection
+            sanitized_isin = isin.replace('%', '\\%').replace('_', '\\_')
+            conditions.append(NoteIssuance.isin.ilike(f"%{sanitized_isin}%"))
         
         if min_amount is not None:
             conditions.append(NoteIssuance.amount >= min_amount)
@@ -402,11 +415,17 @@ async def update_note_status(
             message=f"Note status updated from {old_status} to {new_status}"
         )
     except HTTPException:
-        await db.rollback()
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
         raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Error updating note status: {e}")
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
+        logger.error(f"Error updating note status: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update note status: {str(e)}"
@@ -463,7 +482,7 @@ async def get_note_stats(
         )
         expired_count = expired_result.scalar() or 0
         
-        # Calculate average
+        # Calculate average - prevent division by zero
         average_amount = (total_amount / total_count) if total_count > 0 else 0.0
         
         return NoteStatsResponse(
@@ -500,7 +519,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "status": "healthy",
         "service": "micropaper-custodian",
         "database": db_status,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         "version": "1.0.0"
     }
 
