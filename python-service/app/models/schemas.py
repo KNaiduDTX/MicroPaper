@@ -12,8 +12,11 @@ from datetime import datetime
 class NoteIssuanceRequest(BaseModel):
     """Request model matching NoteIssuanceRequest TypeScript interface"""
     wallet_address: str = Field(..., alias="walletAddress")
-    amount: int
+    amount: int = Field(..., description="Note amount in cents")
     maturity_date: str = Field(..., alias="maturityDate")
+    interest_rate_bps: Optional[int] = Field(500, alias="interestRateBps", description="Interest rate in basis points (default: 500 = 5.00%)")
+    currency: Optional[str] = Field("USD", description="Currency (USD or USDC, default: USD)")
+    min_subscription_amount: Optional[int] = Field(10000, alias="minSubscriptionAmount", description="Minimum subscription in cents (default: 10000 = $100)")
     
     class Config:
         populate_by_name = True
@@ -198,6 +201,94 @@ class WalletDetailsResponse(BaseModel):
     first_note_date: Optional[str] = Field(None, alias="firstNoteDate")
     last_note_date: Optional[str] = Field(None, alias="lastNoteDate")
     notes: List[dict] = Field(default_factory=list)
+    
+    class Config:
+        populate_by_name = True
+
+
+# Market & Trading Types
+class OfferingResponse(BaseModel):
+    """Response model for note offering"""
+    id: int
+    isin: str
+    wallet_address: str = Field(..., alias="walletAddress")
+    amount: int = Field(..., description="Total offering amount in cents")
+    maturity_date: str = Field(..., alias="maturityDate")
+    interest_rate_bps: int = Field(..., alias="interestRateBps", description="Interest rate in basis points")
+    currency: str
+    min_subscription_amount: int = Field(..., alias="minSubscriptionAmount", description="Minimum subscription in cents")
+    offering_status: str = Field(..., alias="offeringStatus")
+    issued_at: str = Field(..., alias="issuedAt")
+    maturity_value_cents: Optional[int] = Field(None, alias="maturityValueCents", description="Calculated maturity value in cents")
+    apy: Optional[float] = Field(None, description="Annual Percentage Yield")
+    
+    class Config:
+        populate_by_name = True
+
+
+class OfferingsResponse(BaseModel):
+    """Response model for offerings list"""
+    offerings: List[OfferingResponse]
+    total: int
+    page: int
+    limit: int
+    has_more: bool = Field(..., alias="hasMore")
+    
+    class Config:
+        populate_by_name = True
+
+
+class OrderCreate(BaseModel):
+    """Request model for creating an investment order"""
+    note_id: int = Field(..., alias="noteId", description="ID of the note to invest in")
+    amount: int = Field(..., description="Investment amount in cents (must be >= min_subscription_amount)")
+    
+    class Config:
+        populate_by_name = True
+
+
+class OrderResponse(BaseModel):
+    """Response model for order"""
+    id: int
+    investor_wallet: str = Field(..., alias="investorWallet")
+    note_id: int = Field(..., alias="noteId")
+    amount: int = Field(..., description="Order amount in cents")
+    status: str
+    created_at: str = Field(..., alias="createdAt")
+    filled_at: Optional[str] = Field(None, alias="filledAt")
+    request_id: Optional[str] = Field(None, alias="requestId")
+    
+    class Config:
+        populate_by_name = True
+
+
+class HoldingResponse(BaseModel):
+    """Response model for investor holding"""
+    id: int
+    wallet_address: str = Field(..., alias="walletAddress")
+    note_id: int = Field(..., alias="noteId")
+    isin: str
+    quantity_held: int = Field(..., alias="quantityHeld", description="Amount held in cents")
+    acquisition_price: int = Field(..., alias="acquisitionPrice", description="Price per unit in cents")
+    acquired_at: str = Field(..., alias="acquiredAt")
+    maturity_date: str = Field(..., alias="maturityDate")
+    maturity_value_cents: Optional[int] = Field(None, alias="maturityValueCents")
+    apy: Optional[float] = Field(None, description="Annual Percentage Yield")
+    
+    class Config:
+        populate_by_name = True
+
+
+class SettleResponse(BaseModel):
+    """Response model for settlement operation"""
+    success: bool
+    message: str
+    note_id: int = Field(..., alias="noteId")
+    total_subscribed: int = Field(..., alias="totalSubscribed", description="Total subscribed amount in cents")
+    total_offering: int = Field(..., alias="totalOffering", description="Total offering amount in cents")
+    orders_filled: int = Field(..., alias="ordersFilled", description="Number of orders filled")
+    holdings_created: int = Field(..., alias="holdingsCreated", description="Number of holdings created")
+    request_id: Optional[str] = Field(None, alias="requestId")
     
     class Config:
         populate_by_name = True

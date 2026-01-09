@@ -15,7 +15,7 @@ from app.config import settings
 from app.database import init_db, close_db
 from app.middleware.auth import validate_api_key
 from app.middleware.request_id import add_request_id_middleware
-from app.routes import custodian, compliance
+from app.routes import custodian, compliance, market
 
 # Configure logging
 logging.basicConfig(
@@ -104,6 +104,7 @@ async def api_key_middleware(request: Request, call_next):
 # Use /api/mock/* to match frontend expectations
 app.include_router(custodian.router, prefix="/api/mock/custodian", tags=["Custodian"])
 app.include_router(compliance.router, prefix="/api/mock/compliance", tags=["Compliance"])
+app.include_router(market.router, prefix="/api/market", tags=["Market"])
 
 
 # Root endpoint
@@ -129,6 +130,12 @@ async def root():
                 "getVerified": "GET /api/mock/compliance/verified",
                 "health": "GET /api/mock/compliance/health",
                 "info": "GET /api/mock/compliance/info"
+            },
+            "market": {
+                "getOfferings": "GET /api/market/offerings",
+                "invest": "POST /api/market/invest",
+                "settle": "POST /api/market/settle/{note_id}",
+                "getHoldings": "GET /api/market/holdings"
             }
         }
     }

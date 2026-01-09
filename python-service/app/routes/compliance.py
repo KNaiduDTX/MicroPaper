@@ -431,7 +431,7 @@ async def check_status(
         logger.warning(f"Error logging audit trail: {e}", extra={"request_id": request_id})
         # Log error but don't fail the request
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
     
@@ -490,7 +490,7 @@ async def verify_wallet(
         await db.commit()
     except Exception as e:
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
         logger.error(f"Error verifying wallet: {e}", extra={"request_id": request_id}, exc_info=True)
@@ -553,7 +553,7 @@ async def unverify_wallet(
         await db.commit()
     except Exception as e:
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", extra={"request_id": request_id})
         logger.error(f"Error unverifying wallet: {e}", extra={"request_id": request_id}, exc_info=True)

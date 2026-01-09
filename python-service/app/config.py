@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     api_key: str = ""
+    admin_key: str = ""  # Separate key for admin operations (defaults to api_key if not set)
     environment: str = "development"
     
     # Database Configuration
@@ -35,6 +36,9 @@ class Settings(BaseSettings):
                 raise ValueError("API_KEY is required in production")
             if not self.database_url:
                 raise ValueError("DATABASE_URL is required in production")
+            # Admin key defaults to API key if not set (for MVP)
+            if not self.admin_key:
+                self.admin_key = self.api_key
         
         # Parse allowed origins from environment if provided
         if isinstance(self.allowed_origins, str):

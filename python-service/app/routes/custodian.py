@@ -11,7 +11,7 @@ import random
 import logging
 
 from app.database import get_db
-from app.models.database import NoteIssuance
+from app.models.database import NoteIssuance, CurrencyEnum, OfferingStatusEnum
 from app.models.schemas import (
     NoteIssuanceRequest, 
     NoteIssuanceResponse, 
@@ -49,7 +49,7 @@ async def issue_note(
     
     # Parse maturity date with proper error handling
     try:
-        maturity_date = datetime.fromisoformat(request.maturity_date.replace('Z', '+00:00'))
+    maturity_date = datetime.fromisoformat(request.maturity_date.replace('Z', '+00:00'))
     except (ValueError, AttributeError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -67,19 +67,35 @@ async def issue_note(
     
     # Store in database
     try:
+        # Parse currency enum
+        currency = CurrencyEnum.USD
+        if hasattr(request, 'currency') and request.currency:
+            try:
+                currency = CurrencyEnum(request.currency.upper())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid currency: {request.currency}. Must be USD or USDC"
+                )
+        
         note_issuance = NoteIssuance(
             isin=isin,
             wallet_address=wallet_address,
             amount=request.amount,
             maturity_date=maturity_date,
             status="issued",
-            issued_at=issued_at
+            issued_at=issued_at,
+            # Settlement Layer fields
+            interest_rate_bps=getattr(request, 'interest_rate_bps', 500),  # Default 5.00% (500 basis points)
+            currency=currency,
+            min_subscription_amount=getattr(request, 'min_subscription_amount', 10000),  # Default $100 minimum
+            offering_status=OfferingStatusEnum.OPEN.value  # New notes are open for investment
         )
         db.add(note_issuance)
         await db.commit()
     except Exception as e:
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
         logger.error(f"Error issuing note: {e}", exc_info=True)
@@ -416,13 +432,13 @@ async def update_note_status(
         )
     except HTTPException:
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
         raise
     except Exception as e:
         try:
-            await db.rollback()
+        await db.rollback()
         except Exception as rollback_error:
             logger.error(f"Error during rollback: {rollback_error}", exc_info=True)
         logger.error(f"Error updating note status: {e}", exc_info=True)
