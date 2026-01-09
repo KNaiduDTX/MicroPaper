@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 import logging
 import sys
 
@@ -136,12 +137,24 @@ async def root():
 # Global health check endpoint
 @app.get("/health")
 async def health_check():
-    """Global health check endpoint"""
+    """Global health check endpoint with database status"""
+    from app.database import engine
+    
+    db_status = "disconnected"
+    if engine:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("SELECT 1"))
+            db_status = "connected"
+        except Exception:
+            db_status = "error"
+    
     return {
         "status": "healthy",
         "service": "micropaper-python-api",
         "version": "1.0.0",
-        "environment": settings.environment
+        "environment": settings.environment,
+        "database": db_status
     }
 
 

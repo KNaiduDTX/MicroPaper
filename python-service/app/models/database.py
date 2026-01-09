@@ -42,5 +42,5 @@ class ComplianceAuditLog(Base):
     performed_by = Column(String(255), nullable=True)
     request_id = Column(String(255), index=True, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    metadata = Column(Text, nullable=True)  # JSON string for additional data
+    metadata_json = Column("metadata", Text, nullable=True)  # JSON string for additional data
 
