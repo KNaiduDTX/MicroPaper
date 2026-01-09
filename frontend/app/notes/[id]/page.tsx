@@ -12,6 +12,14 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { useToast } from '@/components/ui/Toast';
 import { ArrowLeft, Copy, ExternalLink, Printer } from 'lucide-react';
+import {
+  formatDate,
+  formatDateTime,
+  formatCurrency,
+  formatDaysUntilMaturity,
+  getDaysUntil,
+} from '@/lib/utils/dataFormatting';
+import { Table, TableColumn } from '@/components/ui/Table';
 
 export default function NoteDetailsPage() {
   const router = useRouter();
@@ -20,6 +28,7 @@ export default function NoteDetailsPage() {
   const { fetchNotes, loading, error } = useNotes();
   const { showToast } = useToast();
   const [note, setNote] = useState<NoteIssuance | null>(null);
+  const [allNotes, setAllNotes] = useState<NoteIssuance[]>([]);
 
   useEffect(() => {
     if (noteId) {
@@ -31,6 +40,7 @@ export default function NoteDetailsPage() {
     try {
       const notes = await fetchNotes({ limit: 1000 });
       if (notes && Array.isArray(notes)) {
+        setAllNotes(notes);
         const foundNote = notes.find((n) => n.id.toString() === noteId);
         if (foundNote) {
           setNote(foundNote);
@@ -39,61 +49,6 @@ export default function NoteDetailsPage() {
     } catch (err) {
       console.error('Error loading note:', err);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      // Handle malformed dates with both +00:00 and Z
-      let cleanDateString = dateString;
-      if (dateString.includes('+00:00Z')) {
-        cleanDateString = dateString.replace('+00:00Z', 'Z');
-      } else if (dateString.includes('+00:00') && !dateString.endsWith('Z')) {
-        cleanDateString = dateString.replace('+00:00', '') + 'Z';
-      }
-      
-      const date = new Date(cleanDateString);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.warn('Invalid date:', dateString);
-        return {
-          date: dateString,
-          time: '',
-          full: dateString,
-        };
-      }
-      
-      return {
-        date: date.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          timeZone: 'UTC',
-        }),
-        time: date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'UTC',
-        }),
-        full: date.toLocaleString('en-US', { timeZone: 'UTC' }),
-      };
-    } catch (error) {
-      console.error('Error formatting date:', dateString, error);
-      return {
-        date: dateString,
-        time: '',
-        full: dateString,
-      };
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
   };
 
   const getStatusBadge = (status: string) => {
@@ -123,39 +78,46 @@ export default function NoteDetailsPage() {
     });
   };
 
-  const getDaysUntilMaturity = (maturityDate: string) => {
-    try {
-      // Handle malformed dates with both +00:00 and Z
-      let cleanDateString = maturityDate;
-      if (maturityDate.includes('+00:00Z')) {
-        cleanDateString = maturityDate.replace('+00:00Z', 'Z');
-      } else if (maturityDate.includes('+00:00') && !maturityDate.endsWith('Z')) {
-        cleanDateString = maturityDate.replace('+00:00', '') + 'Z';
-      }
-      
-      const maturity = new Date(cleanDateString);
-      const now = new Date();
-      
-      // Check if dates are valid
-      if (isNaN(maturity.getTime())) {
-        console.warn('Invalid maturity date:', maturityDate);
-        return null;
-      }
-      
-      // Calculate difference in milliseconds
-      const diff = maturity.getTime() - now.getTime();
-      
-      // Convert to days (round down for negative, round up for positive)
-      const days = diff >= 0 
-        ? Math.ceil(diff / (1000 * 60 * 60 * 24))
-        : Math.floor(diff / (1000 * 60 * 60 * 24));
-      
-      return days;
-    } catch (error) {
-      console.error('Error calculating days until maturity:', maturityDate, error);
-      return null;
-    }
-  };
+  // Get related notes (notes from same wallet)
+  const relatedNotes = allNotes.filter(
+    (n) => n.wallet_address === note?.wallet_address && n.id.toString() !== noteId
+  ).slice(0, 5);
+
+  const relatedNotesColumns: TableColumn<NoteIssuance>[] = [
+    {
+      key: 'isin',
+      header: 'ISIN',
+      render: (n: NoteIssuance) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/notes/${n.id}`);
+          }}
+          className="text-blue-600 hover:text-blue-800 font-mono text-sm hover:underline"
+        >
+          {n.isin}
+        </button>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      align: 'right',
+      render: (n: NoteIssuance) => (
+        <span className="font-semibold">{formatCurrency(n.amount)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (n: NoteIssuance) => getStatusBadge(n.status),
+    },
+    {
+      key: 'maturity_date',
+      header: 'Maturity',
+      render: (n: NoteIssuance) => formatDate(n.maturity_date),
+    },
+  ];
 
   if (loading) {
     return (
@@ -204,10 +166,10 @@ export default function NoteDetailsPage() {
     );
   }
 
-  const maturityInfo = formatDate(note.maturity_date);
-  const issuedInfo = formatDate(note.issued_at);
-  const createdInfo = formatDate(note.created_at);
-  const daysUntilMaturity = getDaysUntilMaturity(note.maturity_date);
+  const maturityInfo = formatDateTime(note.maturity_date, 'MMMM dd, yyyy', 'hh:mm a');
+  const issuedInfo = formatDateTime(note.issued_at, 'MMMM dd, yyyy', 'hh:mm a');
+  const createdInfo = formatDateTime(note.created_at, 'MMMM dd, yyyy', 'hh:mm a');
+  const daysUntilMaturity = getDaysUntil(note.maturity_date);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -342,6 +304,20 @@ export default function NoteDetailsPage() {
               </div>
             </div>
           </Card>
+
+          {/* Related Notes */}
+          {relatedNotes.length > 0 && (
+            <Card title="Related Notes (Same Wallet)">
+              <p className="text-sm text-gray-600 mb-4">
+                {relatedNotes.length} other note{relatedNotes.length !== 1 ? 's' : ''} from this wallet
+              </p>
+              <Table
+                columns={relatedNotesColumns}
+                data={relatedNotes}
+                onRowClick={(n) => router.push(`/notes/${n.id}`)}
+              />
+            </Card>
+          )}
         </div>
       </div>
     </div>

@@ -13,9 +13,17 @@ import { Pagination } from '@/components/ui/Pagination';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { EmptyNotesState, EmptySearchState } from '@/components/ui/EmptyState';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Search, Plus, ExternalLink, Filter, Download } from 'lucide-react';
+import { Search, Plus, ExternalLink, Filter, Download, Copy } from 'lucide-react';
 import { downloadCSV, formatDateForExport } from '@/lib/utils/export';
 import { useToast } from '@/components/ui/Toast';
+import { TableColumn } from '@/components/ui/Table';
+import {
+  formatCurrency,
+  formatDate,
+  formatWalletAddress,
+  formatDaysUntilMaturity,
+  getDaysUntil,
+} from '@/lib/utils/dataFormatting';
 
 type NoteStatus = 'all' | 'issued' | 'redeemed' | 'expired';
 
@@ -127,42 +135,14 @@ export default function NotesListPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      // Handle malformed dates with both +00:00 and Z
-      let cleanDateString = dateString;
-      if (dateString.includes('+00:00Z')) {
-        cleanDateString = dateString.replace('+00:00Z', 'Z');
-      } else if (dateString.includes('+00:00') && !dateString.endsWith('Z')) {
-        cleanDateString = dateString.replace('+00:00', '') + 'Z';
-      }
-      
-      const date = new Date(cleanDateString);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.warn('Invalid date:', dateString);
-        return dateString;
-      }
-      
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-      });
-    } catch (error) {
-      console.error('Error formatting date:', dateString, error);
-      return dateString;
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-    }).format(amount);
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    showToast({
+      type: 'success',
+      title: 'Copied!',
+      message: `${label} copied to clipboard`,
+      duration: 2000,
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -195,14 +175,19 @@ export default function NotesListPage() {
     );
   };
 
-  const columns = [
+  const columns: TableColumn<NoteIssuance>[] = [
     {
       key: 'isin',
       header: 'ISIN',
+      sortable: true,
+      sortFn: (a, b) => a.isin.localeCompare(b.isin),
       render: (note: NoteIssuance) => (
         <button
-          onClick={() => router.push(`/notes/${note.id}`)}
-          className="text-blue-600 hover:text-blue-800 font-mono text-sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/notes/${note.id}`);
+          }}
+          className="text-blue-600 hover:text-blue-800 font-mono text-sm hover:underline"
         >
           {note.isin}
         </button>
@@ -211,45 +196,96 @@ export default function NotesListPage() {
     {
       key: 'wallet_address',
       header: 'Wallet Address',
+      sortable: true,
+      sortFn: (a, b) => a.wallet_address.localeCompare(b.wallet_address),
       render: (note: NoteIssuance) => (
-        <span className="font-mono text-xs text-gray-600">
-          {note.wallet_address.slice(0, 10)}...{note.wallet_address.slice(-8)}
-        </span>
+        <div className="flex items-center gap-2 group">
+          <Tooltip content={note.wallet_address}>
+            <span className="font-mono text-xs text-gray-600">
+              {formatWalletAddress(note.wallet_address, 8, 6)}
+            </span>
+          </Tooltip>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              copyToClipboard(note.wallet_address, 'Wallet address');
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/wallet/${note.wallet_address}`);
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-800"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
       ),
     },
     {
       key: 'amount',
       header: 'Amount',
-      render: (note: NoteIssuance) => formatCurrency(note.amount),
+      sortable: true,
+      sortFn: (a, b) => a.amount - b.amount,
+      align: 'right',
+      render: (note: NoteIssuance) => (
+        <span className="font-semibold">{formatCurrency(note.amount)}</span>
+      ),
     },
     {
       key: 'maturity_date',
       header: 'Maturity Date',
+      sortable: true,
+      sortFn: (a, b) => {
+        const dateA = new Date(a.maturity_date).getTime();
+        const dateB = new Date(b.maturity_date).getTime();
+        return dateA - dateB;
+      },
       render: (note: NoteIssuance) => formatDate(note.maturity_date),
+    },
+    {
+      key: 'days_until_maturity',
+      header: 'Days Until Maturity',
+      sortable: true,
+      sortFn: (a, b) => {
+        const daysA = getDaysUntil(a.maturity_date) ?? 0;
+        const daysB = getDaysUntil(b.maturity_date) ?? 0;
+        return daysA - daysB;
+      },
+      render: (note: NoteIssuance) => {
+        const days = getDaysUntil(note.maturity_date);
+        if (days === null) return <span className="text-gray-400">N/A</span>;
+        
+        const className = days < 0 
+          ? 'text-red-600 font-medium'
+          : days <= 7
+          ? 'text-orange-600 font-medium'
+          : 'text-gray-600';
+        
+        return <span className={className}>{formatDaysUntilMaturity(note.maturity_date)}</span>;
+      },
     },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
+      sortFn: (a, b) => a.status.localeCompare(b.status),
       render: (note: NoteIssuance) => getStatusBadge(note.status),
     },
     {
       key: 'issued_at',
       header: 'Issued',
+      sortable: true,
+      sortFn: (a, b) => {
+        const dateA = new Date(a.issued_at).getTime();
+        const dateB = new Date(b.issued_at).getTime();
+        return dateA - dateB;
+      },
       render: (note: NoteIssuance) => formatDate(note.issued_at),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (note: NoteIssuance) => (
-        <Tooltip content="View note details">
-          <button
-            onClick={() => router.push(`/notes/${note.id}`)}
-            className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-          >
-            View <ExternalLink className="h-3 w-3" />
-          </button>
-        </Tooltip>
-      ),
     },
   ];
 
@@ -398,7 +434,12 @@ export default function NotesListPage() {
                 )
               ) : (
                 <>
-                  <Table columns={columns} data={paginatedNotes} />
+                  <Table
+                    columns={columns}
+                    data={paginatedNotes}
+                    onRowClick={(note) => router.push(`/notes/${note.id}`)}
+                    stickyHeader
+                  />
                   {totalPages > 1 && (
                     <div className="mt-6">
                       <Pagination
