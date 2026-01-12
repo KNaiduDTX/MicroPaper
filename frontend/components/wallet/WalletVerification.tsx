@@ -10,28 +10,78 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { WalletAddressInput } from '@/components/forms/WalletAddressInput';
 import { useWallet } from '@/lib/hooks/useWallet';
+import { useToast } from '@/components/ui/Toast';
 import { WalletStatus } from './WalletStatus';
 
 export const WalletVerification: React.FC = () => {
   const [walletAddress, setWalletAddress] = useState('');
   const { verify, unverify, checkStatus } = useWallet();
+  const { showToast } = useToast();
+
+  const getErrorMessage = (error: any): string => {
+    if (!error) return 'An unexpected error occurred';
+    
+    const errorCode = error.error?.code;
+    const errorMessage = error.error?.message || 'Operation failed';
+    
+    switch (errorCode) {
+      case 'NETWORK_ERROR':
+        return 'Unable to connect to the server. Please check your internet connection.';
+      case 'UNAUTHORIZED':
+        return 'Authentication failed. Please refresh the page.';
+      case 'VALIDATION_ERROR':
+        return errorMessage || 'Invalid wallet address format.';
+      default:
+        return errorMessage || 'An error occurred. Please try again.';
+    }
+  };
 
   const handleVerify = async () => {
     if (!walletAddress) return;
-    await verify.execute(walletAddress);
-    // Refresh status after verification
-    setTimeout(() => {
-      checkStatus.execute(walletAddress);
-    }, 500);
+    try {
+      const result = await verify.execute(walletAddress);
+      if (result) {
+        showToast({
+          type: 'success',
+          title: 'Wallet Verified',
+          message: result.message || `Wallet ${walletAddress.slice(0, 10)}... has been verified.`,
+        });
+        // Refresh status after verification
+        setTimeout(() => {
+          checkStatus.execute(walletAddress);
+        }, 500);
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: 'Verification Failed',
+        message: getErrorMessage(verify.error),
+      });
+    }
   };
 
   const handleUnverify = async () => {
     if (!walletAddress) return;
-    await unverify.execute(walletAddress);
-    // Refresh status after unverification
-    setTimeout(() => {
-      checkStatus.execute(walletAddress);
-    }, 500);
+    try {
+      const result = await unverify.execute(walletAddress);
+      if (result) {
+        showToast({
+          type: 'success',
+          title: 'Wallet Unverified',
+          message: result.message || `Wallet ${walletAddress.slice(0, 10)}... has been unverified.`,
+        });
+        // Refresh status after unverification
+        setTimeout(() => {
+          checkStatus.execute(walletAddress);
+        }, 500);
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: 'Unverification Failed',
+        message: getErrorMessage(unverify.error),
+      });
+    }
   };
 
   return (
@@ -48,7 +98,7 @@ export const WalletVerification: React.FC = () => {
             <Alert
               type="error"
               title="Verification Error"
-              message={verify.error.error.message || 'Failed to verify wallet'}
+              message={getErrorMessage(verify.error)}
               onClose={() => verify.reset()}
             />
           )}
@@ -57,23 +107,7 @@ export const WalletVerification: React.FC = () => {
             <Alert
               type="error"
               title="Unverification Error"
-              message={unverify.error.error.message || 'Failed to unverify wallet'}
-              onClose={() => unverify.reset()}
-            />
-          )}
-
-          {verify.data && (
-            <Alert
-              type="success"
-              message={verify.data.message || 'Wallet verified successfully'}
-              onClose={() => verify.reset()}
-            />
-          )}
-
-          {unverify.data && (
-            <Alert
-              type="success"
-              message={unverify.data.message || 'Wallet unverified successfully'}
+              message={getErrorMessage(unverify.error)}
               onClose={() => unverify.reset()}
             />
           )}
@@ -83,17 +117,17 @@ export const WalletVerification: React.FC = () => {
               variant="primary"
               onClick={handleVerify}
               isLoading={verify.loading}
-              disabled={!walletAddress}
+              disabled={!walletAddress || verify.loading}
             >
-              Verify Wallet
+              {verify.loading ? 'Verifying...' : 'Verify Wallet'}
             </Button>
             <Button
               variant="danger"
               onClick={handleUnverify}
               isLoading={unverify.loading}
-              disabled={!walletAddress}
+              disabled={!walletAddress || unverify.loading}
             >
-              Unverify Wallet
+              {unverify.loading ? 'Unverifying...' : 'Unverify Wallet'}
             </Button>
           </div>
         </div>

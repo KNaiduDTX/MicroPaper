@@ -68,19 +68,50 @@ export const AmountInput: React.FC<AmountInputProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const isValidAmount = typeof value === 'number' && value >= 10000 && value % 10000 === 0;
+  const formattedAmount = typeof value === 'number' ? formatCurrency(value) : '';
+
   return (
-    <Input
-      label={label}
-      type="number"
-      value={displayValue}
-      onChange={handleChange}
-      error={localError}
-      placeholder="100000"
-      required={required}
-      min={10000}
-      step={10000}
-      helperText="Amount must be a multiple of $10,000 (minimum $10,000)"
-    />
+    <div>
+      <Input
+        label={label}
+        type="number"
+        value={displayValue}
+        onChange={handleChange}
+        error={localError}
+        placeholder="100000"
+        required={required}
+        min={10000}
+        step={10000}
+        helperText="Amount must be a multiple of $10,000 (minimum $10,000)"
+        className={isValidAmount && !localError ? 'border-green-500' : ''}
+      />
+      {isValidAmount && !localError && value && (
+        <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+          Valid amount: {formattedAmount}
+        </div>
+      )}
+      {typeof value === 'number' && value > 0 && value < 10000 && (
+        <div className="mt-1 text-xs text-amber-600">
+          Minimum amount is $10,000
+        </div>
+      )}
+      {typeof value === 'number' && value > 0 && value % 10000 !== 0 && (
+        <div className="mt-1 text-xs text-amber-600">
+          Amount must be a multiple of $10,000
+        </div>
+      )}
+    </div>
   );
 };
 

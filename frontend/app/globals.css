@@ -24,3 +24,117 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Toast animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-out;
+}
+
+/* Print styles */
+@media print {
+  /* Hide non-essential elements */
+  header,
+  footer,
+  nav,
+  button:not(.print-visible),
+  .no-print {
+    display: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+
+  /* Body styling for print */
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* Card styling for print */
+  .bg-white,
+  .bg-gray-50 {
+    background: white !important;
+  }
+
+  /* Ensure text is black */
+  .text-gray-900,
+  .text-gray-800,
+  .text-gray-700 {
+    color: black !important;
+  }
+
+  /* Remove shadows and borders for cleaner print */
+  .shadow-md,
+  .shadow-lg,
+  .border {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+  }
+
+  /* Links */
+  a {
+    color: black !important;
+    text-decoration: underline;
+  }
+
+  /* Ensure tables print well */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th,
+  td {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+
+  /* Hide interactive elements */
+  .hover\:bg-gray-50:hover {
+    background: white !important;
+  }
+}

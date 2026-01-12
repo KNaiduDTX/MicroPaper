@@ -13,8 +13,18 @@ const config = require('../config');
  */
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
+    // In production, require origin header for security
+    // In development, allow requests with no origin for testing
+    const isProduction = config.server.env === 'production';
+    
+    if (!origin) {
+      if (isProduction) {
+        // Reject requests with no origin in production
+        return callback(new Error('CORS: Origin header required in production'));
+      }
+      // Allow in development for testing tools (curl, Postman, etc.)
+      return callback(null, true);
+    }
 
     if (config.cors.allowedOrigins.includes(origin)) {
       callback(null, true);

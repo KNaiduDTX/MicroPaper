@@ -4,6 +4,8 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/components/ui/Toast";
+import { QuickActions } from "@/components/ui/QuickActions";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,11 +33,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
         <ErrorBoundary>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <ToastProvider>
+            <Header />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+            <QuickActions />
+          </ToastProvider>
         </ErrorBoundary>
       </body>
     </html>
